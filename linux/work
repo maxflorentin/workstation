@@ -243,7 +243,6 @@ cmd_tailscale_doctor() {
     local client="${1:-}"
     local failures=0
     local warnings=0
-    local admin_sudo=0
 
     _ok() { echo "ok   $*"; }
     _warn() { echo "warn $*"; warnings=$((warnings + 1)); }
@@ -332,6 +331,7 @@ cmd_doctor() {
     local client="${1:-}"
     local failures=0
     local warnings=0
+    local admin_sudo=0
 
     _ok() { echo "ok   $*"; }
     _warn() { echo "warn $*"; warnings=$((warnings + 1)); }
