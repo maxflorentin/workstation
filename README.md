@@ -69,5 +69,6 @@ work vpn-doctor [client]       # personal + secondary Tailscale checks
 ## Docs
 
 - [Workstation](docs/workstation.md) - headless Linux workstation architecture
+- [Workstation Migration](docs/workstation-migration.md) - applying this foundation to the Dell
 - [Secondary Tailscale](docs/tailscale-client.md) - client tailnet isolation
 - [Envy](docs/envy.md) - Encrypted secrets manager
