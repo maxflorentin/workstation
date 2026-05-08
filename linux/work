@@ -425,12 +425,13 @@ cmd_doctor() {
 ram_pct=$(free | awk '/Mem/{printf "%.0f", $3/$2*100}')
 disk_pct=$(df / | awk 'NR==2{gsub(/%/,""); print $5}')
 load=$(awk '{print $1}' /proc/loadavg)
-temp_file=$(find /sys/class/thermal -name temp -type f 2>/dev/null | head -1)
-[ -z "$temp_file" ] && temp_file=$(find /sys/class/hwmon -name 'temp*_input' -type f 2>/dev/null | head -1)
+temp_file=$(find /sys/class/thermal /sys/class/hwmon /sys/devices \( -name temp -o -name 'temp*_input' \) -type f 2>/dev/null | head -1)
 temp_c=""
 if [ -n "$temp_file" ]; then
     temp_raw=$(cat "$temp_file" 2>/dev/null || echo "")
     [ -n "$temp_raw" ] && temp_c=$((temp_raw / 1000))
+elif command -v sensors >/dev/null 2>&1; then
+    temp_c=$(sensors -u 2>/dev/null | awk -F: '/temp[0-9]+_input:/ {gsub(/^[ \t]+/, "", $2); printf "%.0f\n", $2; exit}')
 fi
 printf 'ram_pct=%s disk_pct=%s load=%s temp_c=%s\n' "$ram_pct" "$disk_pct" "$load" "$temp_c"
 REMOTE
