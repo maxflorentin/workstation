@@ -68,6 +68,7 @@ For each client user:
 
 ```bash
 work doctor <client>
+work compliance-doctor <client>
 work vpn-doctor <client>
 ```
 
@@ -109,3 +110,4 @@ expected to report that the secondary instance is missing.
 - `work vpn-doctor` passes from the Mac.
 - Each client has an explicit decision for Docker group membership.
 - Each client has an explicit decision for secondary Tailscale.
+- Compliance-sensitive clients pass `work compliance-doctor <client>`.

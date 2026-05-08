@@ -311,7 +311,13 @@ cmd_tailscale_doctor() {
         _ssh_quiet "systemctl is-active --quiet '$service'" && _ok "service active: $service" || _warn "service not active: $service"
         _ssh_quiet "grep -q -- '--tun=userspace-networking' '$unit'" && _ok "secondary daemon uses userspace networking" || _fail "secondary daemon is not configured for userspace networking"
         _ssh_quiet "grep -q -- '--accept-routes is blocked' '$wrapper'" && _ok "wrapper blocks --accept-routes" || _fail "wrapper does not appear to block --accept-routes"
-        _ssh_quiet "sudo -n tailscale --socket='$socket' status >/dev/null 2>&1" && _ok "secondary tailscale status responds" || _warn "secondary tailscale status failed"
+        if _ssh_as_quiet "$client" "tailscale-$client status >/dev/null 2>&1"; then
+            _ok "secondary tailscale status responds as client"
+        elif _ssh_quiet "sudo -n tailscale --socket='$socket' status >/dev/null 2>&1"; then
+            _ok "secondary tailscale status responds via admin sudo"
+        else
+            _warn "secondary tailscale status failed"
+        fi
 
         if [ "$failures" -gt 0 ]; then
             echo ""
@@ -340,6 +346,79 @@ cmd_tailscale_setup() {
     fi
     _validate_client_name "$client"
     _ssh_tty "sudo ~/.dotfiles/workstation/tailscale-client-setup '$client'"
+}
+
+# --- compliance-doctor ---
+# Non-destructive checks for common client compliance requirements.
+cmd_compliance_doctor() {
+    local client="${1:-}"
+    local failures=0
+    local warnings=0
+
+    _ok() { echo "ok   $*"; }
+    _warn() { echo "warn $*"; warnings=$((warnings + 1)); }
+    _fail() { echo "fail $*"; failures=$((failures + 1)); }
+
+    if [ -z "$client" ]; then
+        echo "Usage: work compliance-doctor <client>"
+        echo ""
+        echo "Checks endpoint agent, DNS filtering, antivirus, and home/disk encryption."
+        exit 1
+    fi
+    _validate_client_name "$client"
+
+    echo "compliance doctor"
+    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  client:      $client"
+    echo ""
+
+    echo "== Client =="
+    if _ssh_quiet "id '$client' >/dev/null 2>&1"; then
+        _ok "client user exists"
+    else
+        _fail "client user does not exist"
+    fi
+
+    echo ""
+    echo "== Endpoint Agent =="
+    _ssh_quiet "systemctl is-active --quiet wazuh-agent.service" && _ok "wazuh-agent active" || _fail "wazuh-agent inactive"
+
+    echo ""
+    echo "== Web Filtering =="
+    local nextdns_count
+    nextdns_count=$(_ssh_quiet "grep -c 'dns.nextdns.io' /etc/systemd/resolved.conf 2>/dev/null" || echo 0)
+    if [ "${nextdns_count:-0}" -ge 2 ] 2>/dev/null; then
+        _ok "resolved.conf contains NextDNS endpoints ($nextdns_count)"
+    else
+        _fail "resolved.conf missing NextDNS endpoints"
+    fi
+    _ssh_quiet "systemctl is-active --quiet systemd-resolved.service" && _ok "systemd-resolved active" || _warn "systemd-resolved not active"
+
+    echo ""
+    echo "== Antivirus =="
+    _ssh_quiet "systemctl is-active --quiet clamav-daemon.service" && _ok "clamav-daemon active" || _fail "clamav-daemon inactive"
+
+    echo ""
+    echo "== Encryption =="
+    local home_fs disk_crypto
+    home_fs=$(_ssh_quiet "findmnt -no FSTYPE /home/$client 2>/dev/null" || true)
+    disk_crypto=$(_ssh_quiet "lsblk -o FSTYPE 2>/dev/null | awk '/^(crypt|luks)\$/ {print; exit}'" || true)
+
+    if [ "$home_fs" = "ecryptfs" ]; then
+        _ok "client home is ecryptfs"
+    elif [ -n "$disk_crypto" ]; then
+        _ok "encrypted block device detected ($disk_crypto)"
+    else
+        _fail "no ecryptfs home or crypt/luks block device detected"
+    fi
+
+    echo ""
+    if [ "$failures" -gt 0 ]; then
+        echo "compliance doctor failed: $failures failure(s), $warnings warning(s)"
+        exit 1
+    fi
+
+    echo "compliance doctor passed: $warnings warning(s)"
 }
 
 # --- doctor ---
@@ -883,6 +962,7 @@ cmd_help() {
     echo ""
     echo "Commands:"
     echo "  work doctor [client]              General workstation/client health checks"
+    echo "  work compliance-doctor <client>   Check compliance services and encryption"
     echo "  work connect [client] [project]   SSH as client + tmux (fuzzy project match)"
     echo "  work user-create <client>         Create a dedicated Linux user for a client"
     echo "  work status                       fastfetch-style workstation status"
@@ -917,6 +997,7 @@ case "${1:-}" in
     connect)        shift; cmd_connect "$@" ;;
     user-create)    shift; cmd_user_create "$@" ;;
     doctor)         shift; cmd_doctor "$@" ;;
+    compliance-doctor) shift; cmd_compliance_doctor "$@" ;;
     status)         cmd_status ;;
     health)         cmd_health ;;
     watch)          shift; cmd_watch "$@" ;;

@@ -43,6 +43,7 @@ Linux workstation
 | `workstation doctor` | local host | Validate prerequisites and links |
 | `workstation bootstrap` | Linux server | Install workstation base packages |
 | `work doctor [client]` | Mac -> server | General workstation/client health checks |
+| `work compliance-doctor <client>` | Mac -> server | Check compliance services, DNS filtering, and encryption |
 | `work connect <client>` | Mac -> server | SSH into client tmux workspace |
 | `work tailscale-setup <client>` | Mac -> server | Install secondary Tailscale daemon for a client |
 | `work vpn-doctor [client]` | Mac -> server | Validate personal and secondary Tailscale |
