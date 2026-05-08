@@ -15,6 +15,17 @@ PI_HOST="${WORKSTATION_HOST:-${WORK_PI_HOST:-workstation}}"
 PI_USER="${WORKSTATION_USER:-${WORK_PI_USER:-max}}"
 DOTFILES_REPO="${WORKSTATION_DOTFILES_REPO:-${WORK_DOTFILES_REPO:-https://github.com/maxflorentin/dotfiles-mbairm4.git}}"
 
+_is_local_workstation() {
+    [ "$(uname -s)" = "Linux" ] || return 1
+
+    local host_short host_full
+    host_short="$(hostname -s 2>/dev/null || hostname)"
+    host_full="$(hostname 2>/dev/null || true)"
+
+    [ "$PI_HOST" = "localhost" ] || [ "$PI_HOST" = "127.0.0.1" ] || \
+    [ "$PI_HOST" = "$host_short" ] || [ "$PI_HOST" = "$host_full" ]
+}
+
 _validate_client_name() {
     local name="$1"
     if [[ ! "$name" =~ ^[a-z][a-z0-9_-]*$ ]]; then
@@ -24,15 +35,42 @@ _validate_client_name() {
 }
 
 # --- Admin SSH helpers (run as $PI_USER, typically "max") ---
-_ssh()       { ssh -t  "$PI_USER@$PI_HOST" "$@"; }
-_ssh_tty()   { ssh -tt "$PI_USER@$PI_HOST" "$@"; }
-_ssh_quiet() { ssh -o ConnectTimeout=3 "$PI_USER@$PI_HOST" "$@" 2>/dev/null; }
-_ssh_data()  { ssh -T  -o ClearAllForwardings=yes "$PI_USER@$PI_HOST" "$@"; }
+_ssh() {
+    if _is_local_workstation; then
+        bash -lc "$*"
+    else
+        ssh -t "$PI_USER@$PI_HOST" "$@"
+    fi
+}
+
+_ssh_tty() {
+    if _is_local_workstation; then
+        bash -lc "$*"
+    else
+        ssh -tt "$PI_USER@$PI_HOST" "$@"
+    fi
+}
+
+_ssh_quiet() {
+    if _is_local_workstation; then
+        bash -lc "$*" 2>/dev/null
+    else
+        ssh -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=3 "$PI_USER@$PI_HOST" "$@" 2>/dev/null
+    fi
+}
+
+_ssh_data() {
+    if _is_local_workstation; then
+        bash -lc "$*"
+    else
+        ssh -T -o ClearAllForwardings=yes "$PI_USER@$PI_HOST" "$@"
+    fi
+}
 
 # --- Client SSH helpers (run as <client>@<pi>) ---
 _ssh_as()       { local u="$1"; shift; ssh -t  "$u@$PI_HOST" "$@"; }
 _ssh_as_tty()   { local u="$1"; shift; ssh -tt "$u@$PI_HOST" "$@"; }
-_ssh_as_quiet() { local u="$1"; shift; ssh -o ConnectTimeout=3 "$u@$PI_HOST" "$@" 2>/dev/null; }
+_ssh_as_quiet() { local u="$1"; shift; ssh -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=3 "$u@$PI_HOST" "$@" 2>/dev/null; }
 _ssh_as_data()  { local u="$1"; shift; ssh -T  -o ClearAllForwardings=yes "$u@$PI_HOST" "$@"; }
 
 # List client users on the workstation (real humans with /home and a login shell,
@@ -405,7 +443,12 @@ cmd_compliance_doctor() {
 
     echo ""
     echo "== Antivirus =="
+    for pkg in clamav clamav-daemon clamav-freshclam; do
+        _ssh_quiet "dpkg -s '$pkg' >/dev/null 2>&1" && _ok "package installed: $pkg" || _fail "package missing: $pkg"
+    done
     _ssh_quiet "systemctl is-active --quiet clamav-daemon.service" && _ok "clamav-daemon active" || _fail "clamav-daemon inactive"
+    _ssh_quiet "systemctl is-active --quiet clamav-freshclam.service" && _ok "clamav-freshclam active" || _fail "clamav-freshclam inactive"
+    _ssh_quiet "test -s /var/log/clamav/freshclam.log" && _ok "freshclam log exists" || _warn "freshclam log missing or empty"
 
     echo ""
     echo "== Encryption =="
@@ -428,6 +471,30 @@ cmd_compliance_doctor() {
     fi
 
     echo "compliance doctor passed: $warnings warning(s)"
+}
+
+cmd_clamav_setup() {
+    echo "Installing and initializing ClamAV on $PI_HOST..."
+    echo "This requires sudo on the workstation."
+    _ssh_tty "sudo bash -s" <<'REMOTE'
+set -e
+apt-get update
+apt-get install -y clamav clamav-daemon clamav-freshclam
+
+for name in freshclam daemon; do
+    systemctl stop "clamav-${name}" 2>/dev/null || true
+done
+
+install -d -m 0755 -o clamav -g clamav /var/log/clamav
+install -m 0640 -o clamav -g clamav /dev/null /var/log/clamav/freshclam.log
+
+freshclam --verbose --stdout
+
+for name in freshclam daemon; do
+    systemctl enable --now "clamav-${name}"
+done
+systemctl start clamav-daemon
+REMOTE
 }
 
 # --- doctor ---
@@ -972,6 +1039,7 @@ cmd_help() {
     echo "Commands:"
     echo "  work doctor [client]              General workstation/client health checks"
     echo "  work compliance-doctor <client>   Check compliance services and encryption"
+    echo "  work clamav-setup                 Install and initialize ClamAV"
     echo "  work connect [client] [project]   SSH as client + tmux (fuzzy project match)"
     echo "  work user-create <client>         Create a dedicated Linux user for a client"
     echo "  work status                       fastfetch-style workstation status"
@@ -1007,6 +1075,7 @@ case "${1:-}" in
     user-create)    shift; cmd_user_create "$@" ;;
     doctor)         shift; cmd_doctor "$@" ;;
     compliance-doctor) shift; cmd_compliance_doctor "$@" ;;
+    clamav-setup)   shift; cmd_clamav_setup "$@" ;;
     status)         cmd_status ;;
     health)         cmd_health ;;
     watch)          shift; cmd_watch "$@" ;;
