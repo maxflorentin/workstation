@@ -9,7 +9,7 @@ iPhone (Tailscale)
   │
   │ SSH
   ▼
-Pi workstation (100.88.210.35)          Mac (Tailscale IP)
+Linux workstation (<workstation-tailscale-ip>)          Mac (Tailscale IP)
 ┌──────────────────────┐                ┌──────────────────────┐
 │ - Code editing       │                │ - Docker Desktop     │
 │ - Claude Code (CLI)  │  ◄─Tailscale─► │   ├── postgres       │
@@ -88,13 +88,13 @@ Full resources of the Mac. Best experience for agentic coding tasks.
 ### SSH to Pi via Tailscale
 
 1. Tailscale VPN must be active on iPhone
-2. Terminal app (WebSSH / Blink) → connect to `100.88.210.35`
+2. Terminal app (WebSSH / Blink) → connect to `<workstation-tailscale-ip>`
 3. `tmux attach` to resume sessions
 
 ### Claude Code on Pi (via SSH from iPhone)
 
 ```bash
-ssh max@100.88.210.35
+ssh max@<workstation-tailscale-ip>
 tmux new -s claude        # or tmux attach
 claude
 ```
@@ -155,7 +155,7 @@ Instead: run Docker on the Mac, access services from the Pi via Tailscale.
 ### Setup
 
 1. Docker Desktop running on Mac
-2. Tailscale active on Mac (same account: macsee13@gmail.com)
+2. Tailscale active on Mac (same personal tailnet account)
 3. Containers publish ports normally (`-p 8080:80`)
 4. Pi accesses them via Mac's Tailscale IP or MagicDNS hostname
 

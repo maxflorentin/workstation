@@ -72,3 +72,4 @@ work vpn-doctor [client]       # personal + secondary Tailscale checks
 - [Workstation Migration](docs/workstation-migration.md) - applying this foundation to the Dell
 - [Secondary Tailscale](docs/tailscale-client.md) - client tailnet isolation
 - [Envy](docs/envy.md) - Encrypted secrets manager
+- [Sanitization](docs/sanitization.md) - rules for keeping private names and infrastructure out of git

@@ -265,7 +265,7 @@ echo ""
 echo "Next steps:"
 echo "  1. BIOS (F2): Power Management → AC Recovery → Last State"
 echo "  2. On your Mac — update SSH config:"
-echo "     sed -i '' 's/100.102.172.111/$NEW_TS_IP/g' ~/.ssh/config.d/workstation"
+echo "     sed -i '' 's/<old-workstation-tailscale-ip>/$NEW_TS_IP/g' ~/.ssh/config.d/workstation"
 echo "  3. Verify:"
 echo "     ssh workstation          # key auth as admin"
 if [ -n "$ECRYPTFS_USERS" ]; then

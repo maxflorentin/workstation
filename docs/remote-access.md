@@ -24,7 +24,7 @@ Internet
            ▼
 ┌─────────────────────────────┐
 │ Pi / Server                 │
-│ Tailscale: 100.102.172.111   │
+│ Tailscale: <workstation-tailscale-ip> │
 └─────────────────────────────┘
 ```
 
@@ -43,7 +43,7 @@ Tailscale creates a WireGuard mesh where each device gets a stable `100.x.x.x` I
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
-# Follow the auth URL — login with macsee13@gmail.com
+# Follow the auth URL and login with your personal tailnet account
 ```
 
 After auth:
@@ -70,7 +70,7 @@ sudo tailscale up
 ### iPhone setup
 
 1. App Store → install **Tailscale**
-2. Open → login with **macsee13@gmail.com**
+2. Open and login with your personal tailnet account
 3. Toggle VPN on
 
 ### Troubleshooting
@@ -81,7 +81,7 @@ This happens when the app's local keys get out of sync with the coordination ser
 
 1. On iPhone: **delete** the Tailscale app entirely
 2. Reinstall from App Store
-3. Login with macsee13@gmail.com
+3. Login with your personal tailnet account
 4. On the Pi, verify the iPhone appears:
    ```bash
    tailscale status
@@ -203,11 +203,11 @@ All hosts use the Tailscale IP so they work both on LAN and remotely:
 
 ```
 Host workstation
-    HostName 100.102.172.111
+    HostName <workstation-tailscale-ip>
     User max
 
 Host ws-<client>
-    HostName 100.102.172.111
+    HostName <workstation-tailscale-ip>
     User <client>
     # Add LocalForward as needed per client (ports in ~/.clientrc)
 
@@ -227,8 +227,8 @@ Create one profile per client user:
 
 | Profile | Host | User | Auth |
 |---------|------|------|------|
-| workstation | 100.102.172.111 | max | SSH key |
-| ws-&lt;client&gt; | 100.102.172.111 | &lt;client&gt; | SSH key (or password if ecryptfs) |
+| workstation | `<workstation-tailscale-ip>` | max | SSH key |
+| ws-&lt;client&gt; | `<workstation-tailscale-ip>` | &lt;client&gt; | SSH key (or password if ecryptfs) |
 
 Tailscale must be active (VPN toggle on) before connecting.
 
@@ -260,7 +260,7 @@ ssh workstation                   # key auth, admin user
 ssh ws-<client>                      # per-client host from ~/.ssh/config.d/
 
 # 3. From iPhone
-# Tailscale VPN on → open terminal app → ssh max@100.102.172.111
+# Tailscale VPN on → open terminal app → ssh max@<workstation-tailscale-ip>
 
 # 4. LAN fallback (only if on same network)
 ssh ws-lan
