@@ -42,13 +42,16 @@ for s in gh-clone-org brew-sync py-setup xam-digest sqlit-add-connection work-tr
     [ -f "$DOTFILES/scripts/$s" ] && ln -sf "$DOTFILES/scripts/$s" "$HOME/.local/bin/$s"
 done
 
+# Workstation CLI
+[ -f "$DOTFILES/workstation/workstation" ] && ln -sf "$DOTFILES/workstation/workstation" "$HOME/.local/bin/workstation"
+
 # npm: user-local prefix (lets non-root users `npm i -g` for MCP servers, etc.)
 if [ ! -f "$HOME/.npmrc" ] || ! grep -q 'prefix=' "$HOME/.npmrc" 2>/dev/null; then
     mkdir -p "$HOME/.npm-global"
     echo "prefix=$HOME/.npm-global" >> "$HOME/.npmrc"
 fi
 
-echo "  common: shell, nvim, scripts, npm prefix"
+echo "  common: shell, nvim, scripts, workstation cli, npm prefix"
 
 # === macOS ===
 if [ "$OS" = "Darwin" ]; then

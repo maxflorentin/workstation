@@ -28,6 +28,7 @@ Simple, fast secret management using [age](https://github.com/FiloSottile/age) e
 | `envy-edit` | | Edit current context in $EDITOR |
 | `envy-clear <context>` | | Remove ALL secrets from a context |
 | `envy-rename-context` | | Rename a context |
+| `envy-doctor [context]` | | Validate structure, permissions, and decryptability without printing secrets |
 
 ## Scopes
 
@@ -92,6 +93,18 @@ Moves `~/.envy` to iCloud Drive with a symlink for compatibility.
 - **Keys** (`~/.envy/keys/`) - NEVER commit or share
 - **Encrypted files** (`.envy.age`) - Safe to backup/sync
 - Age uses ChaCha20-Poly1305 with 256-bit keys
+
+## Health Checks
+
+```bash
+envy-doctor              # all contexts
+envy-doctor personal     # one context
+```
+
+The doctor checks that `age` is installed, keys have private permissions,
+encrypted files decrypt with their matching keys, `.gitignore` excludes private
+keys, and no decrypted `*.envy` files are left behind. It never prints secret
+values.
 
 # Envy - Quick Start
 

@@ -1,4 +1,7 @@
-# Pi Workstation
+# Pi Workstation (Legacy)
+
+This document describes the earlier Raspberry Pi workstation model. The current
+target is a Dell/headless Linux workstation; see [workstation.md](workstation.md).
 
 Headless dev server for isolated freelance workspaces.
 Client traffic stays on the server. Your Mac stays clean.

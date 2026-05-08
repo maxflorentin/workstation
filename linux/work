@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# work: Manage freelance workspaces on Raspberry Pi (multi-user model)
+# work: Manage freelance workspaces on a headless Linux workstation (multi-user model)
 # Usage: work <command> [args]
 #
 # Architecture:
@@ -11,9 +11,9 @@
 
 set -e
 
-PI_HOST="${WORK_PI_HOST:-workstation}"
-PI_USER="${WORK_PI_USER:-max}"
-DOTFILES_REPO="${WORK_DOTFILES_REPO:-https://github.com/maxflorentin/dotfiles-mbairm4.git}"
+PI_HOST="${WORKSTATION_HOST:-${WORK_PI_HOST:-workstation}}"
+PI_USER="${WORKSTATION_USER:-${WORK_PI_USER:-max}}"
+DOTFILES_REPO="${WORKSTATION_DOTFILES_REPO:-${WORK_DOTFILES_REPO:-https://github.com/maxflorentin/dotfiles-mbairm4.git}}"
 
 _validate_client_name() {
     local name="$1"
@@ -35,7 +35,7 @@ _ssh_as_tty()   { local u="$1"; shift; ssh -tt "$u@$PI_HOST" "$@"; }
 _ssh_as_quiet() { local u="$1"; shift; ssh -o ConnectTimeout=3 "$u@$PI_HOST" "$@" 2>/dev/null; }
 _ssh_as_data()  { local u="$1"; shift; ssh -T  -o ClearAllForwardings=yes "$u@$PI_HOST" "$@"; }
 
-# List client users on the Pi (real humans with /home and a login shell,
+# List client users on the workstation (real humans with /home and a login shell,
 # excluding the admin user and known system helpers like ecryptfs's encryption_user).
 _list_clients() {
     _ssh_quiet "getent passwd | awk -F: '\$3>=1000 && \$1!=\"$PI_USER\" && \$1!=\"nobody\" && \$1!=\"encryption_user\" && \$7 !~ /(nologin|false)\$/ && \$6 ~ /^\\/home\\// {print \$1}'"
@@ -69,13 +69,13 @@ cmd_connect() {
 }
 
 # --- user-create ---
-# Creates a dedicated Linux user for the client on the Pi
+# Creates a dedicated Linux user for the client on the workstation
 cmd_user_create() {
     local client="$1"
     if [ -z "$client" ]; then
         echo "Usage: work user-create <client>"
         echo ""
-        echo "Creates a dedicated Linux user on the Pi with:"
+        echo "Creates a dedicated Linux user on the workstation with:"
         echo "  - Home at /home/<client> (mode 700)"
         echo "  - Dotfiles clone + install"
         echo "  - SSH authorized_keys seeded from admin's"
@@ -84,7 +84,7 @@ cmd_user_create() {
     fi
 
     _validate_client_name "$client"
-    echo "Creating user '$client' on Pi..."
+    echo "Creating user '$client' on workstation..."
     echo ""
 
     # Phase 1: admin-side ops (useradd, SSH keys, dotfiles clone + install)
@@ -211,7 +211,7 @@ cmd_vpn_up() {
     allowed=$(_ssh_quiet "sudo grep -i 'AllowedIPs' /etc/wireguard/$client.conf 2>/dev/null")
     if echo "$allowed" | grep -q '0\.0\.0\.0/0'; then
         echo "WARNING: $client.conf routes ALL traffic (AllowedIPs = 0.0.0.0/0)"
-        echo "This will kill your SSH connection to the Pi."
+        echo "This will kill your SSH connection to the workstation."
         echo ""
         echo "Edit /etc/wireguard/$client.conf and scope AllowedIPs to the client subnets."
         echo "Example: AllowedIPs = 10.0.0.0/8, 172.16.0.0/12"
@@ -236,10 +236,257 @@ cmd_vpn_down() {
     echo "VPN stopped for $client"
 }
 
+# --- tailscale-doctor / vpn-doctor ---
+# Non-destructive checks for the personal Tailscale daemon and optional
+# per-client secondary Tailscale instance on the workstation.
+cmd_tailscale_doctor() {
+    local client="${1:-}"
+    local failures=0
+    local warnings=0
+    local admin_sudo=0
+
+    _ok() { echo "ok   $*"; }
+    _warn() { echo "warn $*"; warnings=$((warnings + 1)); }
+    _fail() { echo "fail $*"; failures=$((failures + 1)); }
+
+    [ -n "$client" ] && _validate_client_name "$client"
+
+    echo "tailscale doctor"
+    echo "  workstation: $PI_USER@$PI_HOST"
+    [ -n "$client" ] && echo "  client:      $client"
+    echo ""
+
+    echo "== Local Mac =="
+    if command -v tailscale >/dev/null 2>&1; then
+        _ok "tailscale command available"
+        if tailscale status >/dev/null 2>&1; then
+            _ok "personal tailscale status responds"
+            tailscale ip -4 >/dev/null 2>&1 && _ok "personal tailscale has IPv4" || _warn "personal tailscale has no IPv4"
+        else
+            _warn "tailscale installed but status failed locally"
+        fi
+    else
+        _warn "tailscale command not installed locally"
+    fi
+
+    echo ""
+    echo "== Workstation personal =="
+    if ! _ssh_quiet "echo ok" >/dev/null; then
+        _fail "workstation unreachable at $PI_HOST"
+    else
+        _ok "ssh reachable"
+        local shell_output
+        shell_output=$(_ssh_data "zsh -lic 'true' 2>&1" || true)
+        if [ -n "$shell_output" ]; then
+            _warn "interactive zsh emits output during startup"
+            echo "$shell_output" | sed 's/^/     /'
+        else
+            _ok "interactive zsh starts cleanly"
+        fi
+
+        if _ssh_quiet "command -v tailscale >/dev/null"; then
+            _ok "tailscale command available"
+            _ssh_quiet "tailscale status >/dev/null" && _ok "personal tailscale status responds" || _fail "personal tailscale status failed"
+            _ssh_quiet "tailscale ip -4 >/dev/null" && _ok "personal tailscale has IPv4" || _warn "personal tailscale has no IPv4"
+            _ssh_quiet "systemctl is-active --quiet tailscaled" && _ok "tailscaled service active" || _warn "tailscaled service not active or systemctl unavailable"
+        else
+            _fail "tailscale command missing on workstation"
+        fi
+    fi
+
+    if [ -n "$client" ]; then
+        echo ""
+        echo "== Workstation secondary: $client =="
+        local service="tailscaled-$client"
+        local wrapper="/usr/local/bin/tailscale-$client"
+        local socket="/run/tailscale-$client.sock"
+        local unit="/etc/systemd/system/$service.service"
+
+        if ! _ssh_quiet "id '$client' >/dev/null 2>&1"; then
+            _fail "client user does not exist: $client"
+        else
+            _ok "client user exists"
+        fi
+
+        _ssh_quiet "test -x '$wrapper'" && _ok "wrapper exists: $wrapper" || _fail "wrapper missing: $wrapper"
+        _ssh_quiet "test -S '$socket'" && _ok "socket exists: $socket" || _warn "socket missing: $socket"
+        _ssh_quiet "systemctl is-active --quiet '$service'" && _ok "service active: $service" || _warn "service not active: $service"
+        _ssh_quiet "grep -q -- '--tun=userspace-networking' '$unit'" && _ok "secondary daemon uses userspace networking" || _fail "secondary daemon is not configured for userspace networking"
+        _ssh_quiet "grep -q -- '--accept-routes is blocked' '$wrapper'" && _ok "wrapper blocks --accept-routes" || _fail "wrapper does not appear to block --accept-routes"
+        _ssh_quiet "sudo -n tailscale --socket='$socket' status >/dev/null 2>&1" && _ok "secondary tailscale status responds" || _warn "secondary tailscale status failed"
+    fi
+
+    echo ""
+    if [ "$failures" -gt 0 ]; then
+        echo "tailscale doctor failed: $failures failure(s), $warnings warning(s)"
+        exit 1
+    fi
+
+    echo "tailscale doctor passed: $warnings warning(s)"
+}
+
+# --- doctor ---
+# Non-destructive workstation checks: SSH, shell startup, core commands,
+# services, resources, dotfiles install, and optional client user hygiene.
+cmd_doctor() {
+    local client="${1:-}"
+    local failures=0
+    local warnings=0
+
+    _ok() { echo "ok   $*"; }
+    _warn() { echo "warn $*"; warnings=$((warnings + 1)); }
+    _fail() { echo "fail $*"; failures=$((failures + 1)); }
+
+    [ -n "$client" ] && _validate_client_name "$client"
+
+    echo "workstation doctor"
+    echo "  workstation: $PI_USER@$PI_HOST"
+    [ -n "$client" ] && echo "  client:      $client"
+    echo ""
+
+    echo "== Reachability =="
+    if ! _ssh_quiet "echo ok" >/dev/null; then
+        _fail "ssh unreachable at $PI_HOST"
+        echo ""
+        echo "workstation doctor failed: $failures failure(s), $warnings warning(s)"
+        exit 1
+    fi
+    _ok "ssh reachable"
+
+    local remote_identity
+    remote_identity=$(_ssh_data "printf '%s %s %s\n' \"\$(hostname)\" \"\$(uname -s)\" \"\$(uname -m)\"" 2>/dev/null || true)
+    [ -n "$remote_identity" ] && _ok "$remote_identity"
+
+    local shell_output
+    shell_output=$(_ssh_data "zsh -lic 'true' 2>&1" || true)
+    if [ -n "$shell_output" ]; then
+        _warn "interactive zsh emits output during startup"
+        echo "$shell_output" | sed 's/^/     /'
+    else
+        _ok "interactive zsh starts cleanly"
+    fi
+    if _ssh_quiet "id -nG '$PI_USER' | tr ' ' '\n' | grep -qx sudo"; then
+        _ok "admin user is in sudo group"
+    else
+        _warn "admin user is not in sudo group"
+    fi
+    if _ssh_quiet "sudo -n true"; then
+        _ok "passwordless sudo available for non-interactive privileged checks"
+        admin_sudo=1
+    else
+        echo "info passwordless sudo unavailable; privileged checks will be limited"
+    fi
+
+    echo ""
+    echo "== Core commands =="
+    for cmd in git zsh tmux nvim age jq rg curl ssh; do
+        _ssh_quiet "command -v '$cmd' >/dev/null" && _ok "$cmd" || _fail "missing command: $cmd"
+    done
+    for cmd in docker tailscale fastfetch shellcheck; do
+        _ssh_quiet "command -v '$cmd' >/dev/null" && _ok "$cmd" || _warn "optional command missing: $cmd"
+    done
+
+    if _ssh_quiet "command -v fnm >/dev/null"; then
+        _ssh_quiet "fnm --version >/dev/null" && _ok "fnm usable" || _warn "fnm exists but cannot run; reinstall it for this CPU architecture"
+    fi
+
+    echo ""
+    echo "== Services =="
+    _ssh_quiet "systemctl is-active --quiet tailscaled" && _ok "tailscaled active" || _fail "tailscaled not active"
+    _ssh_quiet "systemctl is-enabled --quiet tailscaled" && _ok "tailscaled enabled" || _warn "tailscaled not enabled"
+    _ssh_quiet "systemctl is-active --quiet sshd || systemctl is-active --quiet ssh" && _ok "ssh service active" || _fail "ssh service not active"
+    _ssh_quiet "systemctl is-enabled --quiet sshd || systemctl is-enabled --quiet ssh" && _ok "ssh service enabled" || _warn "ssh service not enabled"
+    if _ssh_quiet "command -v docker >/dev/null"; then
+        _ssh_quiet "systemctl is-active --quiet docker" && _ok "docker active" || _warn "docker not active"
+    fi
+
+    echo ""
+    echo "== Resources =="
+    local metrics
+    metrics=$(_ssh_data 'bash -s' <<'REMOTE'
+ram_pct=$(free | awk '/Mem/{printf "%.0f", $3/$2*100}')
+disk_pct=$(df / | awk 'NR==2{gsub(/%/,""); print $5}')
+load=$(awk '{print $1}' /proc/loadavg)
+temp_file=$(find /sys/class/thermal -name temp -type f 2>/dev/null | head -1)
+temp_c=""
+if [ -n "$temp_file" ]; then
+    temp_raw=$(cat "$temp_file" 2>/dev/null || echo "")
+    [ -n "$temp_raw" ] && temp_c=$((temp_raw / 1000))
+fi
+printf 'ram_pct=%s disk_pct=%s load=%s temp_c=%s\n' "$ram_pct" "$disk_pct" "$load" "$temp_c"
+REMOTE
+)
+    echo "     $metrics"
+    local ram_pct disk_pct temp_c
+    ram_pct=$(echo "$metrics" | awk '{for(i=1;i<=NF;i++) if($i ~ /^ram_pct=/){sub("ram_pct=","",$i); print $i}}')
+    disk_pct=$(echo "$metrics" | awk '{for(i=1;i<=NF;i++) if($i ~ /^disk_pct=/){sub("disk_pct=","",$i); print $i}}')
+    temp_c=$(echo "$metrics" | awk '{for(i=1;i<=NF;i++) if($i ~ /^temp_c=/){sub("temp_c=","",$i); print $i}}')
+    [ "${ram_pct:-0}" -lt 90 ] 2>/dev/null && _ok "memory below 90%" || _warn "memory high: ${ram_pct:-unknown}%"
+    [ "${disk_pct:-0}" -lt 85 ] 2>/dev/null && _ok "root disk below 85%" || _warn "root disk high: ${disk_pct:-unknown}%"
+    if [ -n "${temp_c:-}" ]; then
+        [ "$temp_c" -lt 80 ] 2>/dev/null && _ok "temperature below 80C" || _warn "temperature high: ${temp_c}C"
+    else
+        _warn "temperature sensor unavailable"
+    fi
+
+    echo ""
+    echo "== Dotfiles =="
+    _ssh_quiet "test -d ~/.dotfiles && test -x ~/.dotfiles/install" && _ok "~/.dotfiles install present" || _fail "~/.dotfiles install missing"
+    _ssh_quiet "test -L ~/.zshrc" && _ok "~/.zshrc symlinked" || _warn "~/.zshrc is not a symlink"
+    _ssh_quiet "test -x ~/.local/bin/work" && _ok "work CLI installed" || _warn "work CLI missing from ~/.local/bin"
+    _ssh_quiet "test -x ~/.local/bin/workstation" && _ok "workstation CLI installed" || _warn "workstation CLI missing from ~/.local/bin"
+
+    if _ssh_quiet "command -v crontab >/dev/null"; then
+        _ssh_quiet "crontab -l 2>/dev/null | grep -qF 'work-tracker pulse'" && _ok "work-tracker pulse cron installed" || _warn "work-tracker pulse cron missing"
+        _ssh_quiet "crontab -l 2>/dev/null | grep -qF 'work-tracker monthly-save'" && _ok "work-tracker monthly-save cron installed" || _warn "work-tracker monthly-save cron missing"
+    fi
+
+    echo ""
+    echo "== Clients =="
+    local clients
+    clients=$(_list_clients || true)
+    if [ -n "$clients" ]; then
+        echo "$clients" | sed 's/^/     /'
+    else
+        _warn "no client users found"
+    fi
+
+    if [ -n "$client" ]; then
+        echo ""
+        echo "== Client: $client =="
+        if ! _ssh_quiet "id '$client' >/dev/null 2>&1"; then
+            _fail "client user does not exist"
+        else
+            _ok "client user exists"
+            local home_mode client_shell
+            home_mode=$(_ssh_quiet "stat -c %a /home/$client 2>/dev/null" || true)
+            client_shell=$(_ssh_quiet "getent passwd '$client' | cut -d: -f7" || true)
+            [ "$home_mode" = "700" ] && _ok "home mode is 700" || _warn "home mode is ${home_mode:-unknown}, expected 700"
+            [ "$client_shell" = "/bin/zsh" ] || [ "$client_shell" = "/usr/bin/zsh" ] && _ok "login shell is zsh" || _warn "login shell is ${client_shell:-unknown}"
+            if [ "$admin_sudo" -eq 1 ]; then
+                _ssh_quiet "sudo -n test -d /home/$client/.dotfiles" && _ok "client dotfiles present" || _warn "client dotfiles missing"
+                _ssh_quiet "sudo -n test -f /home/$client/.clientrc" && _ok "client .clientrc present" || _warn "client .clientrc missing"
+                _ssh_quiet "sudo -n test -x /home/$client/.local/bin/work-tracker" && _ok "client work-tracker installed" || _warn "client work-tracker missing"
+            else
+                echo "info skipping client dotfile checks because passwordless sudo is unavailable"
+            fi
+            _ssh_quiet "id -nG '$client' | tr ' ' '\n' | grep -qx docker" && _warn "client is in docker group (privileged host access)" || _ok "client not in docker group"
+        fi
+    fi
+
+    echo ""
+    if [ "$failures" -gt 0 ]; then
+        echo "workstation doctor failed: $failures failure(s), $warnings warning(s)"
+        exit 1
+    fi
+
+    echo "workstation doctor passed: $warnings warning(s)"
+}
+
 # --- status ---
 cmd_status() {
     if ! _ssh_quiet "echo ok" >/dev/null; then
-        echo "Pi is offline or unreachable at $PI_HOST"
+        echo "Workstation is offline or unreachable at $PI_HOST"
         exit 1
     fi
 
@@ -247,7 +494,7 @@ cmd_status() {
         _ssh_data "fastfetch"
     else
         _ssh_data 'bash -s' <<'REMOTE'
-            echo "=== Pi Status (install fastfetch: sudo apt install fastfetch) ==="
+            echo "=== Workstation Status (install fastfetch: sudo apt install fastfetch) ==="
             echo ""
             echo "Host:    $(hostname)"
             echo "Uptime:  $(uptime -p 2>/dev/null || uptime | sed 's/.*up //')"
@@ -288,7 +535,7 @@ cmd_destroy() {
     fi
     _validate_client_name "$client"
 
-    echo "This will PERMANENTLY delete client '$client' on Pi:"
+    echo "This will PERMANENTLY delete client '$client' on the workstation:"
     echo "  - Linux user + home (/home/$client)"
     echo "  - SSH authorized_keys (/etc/ssh/authorized_keys/$client)"
     echo "  - WireGuard VPN config (if exists)"
@@ -332,7 +579,7 @@ cmd_browse() {
     local client="$1"
     if [ -z "$client" ]; then
         echo "Usage: work browse <client>"
-        echo "Opens isolated Chrome routed through Pi's network/VPN"
+        echo "Opens isolated Chrome routed through workstation network/VPN"
         exit 1
     fi
     _validate_client_name "$client"
@@ -353,7 +600,7 @@ cmd_browse() {
         --no-first-run \
         &>/dev/null &
 
-    echo "Chrome running with Pi network (proxy :$proxy_port). Stop with: work browse-stop $client"
+    echo "Chrome running with workstation network (proxy :$proxy_port). Stop with: work browse-stop $client"
 }
 
 cmd_browse_stop() {
@@ -430,8 +677,8 @@ cmd_health() {
     local warn=""
 
     if ! _ssh_quiet "echo ok" >/dev/null; then
-        osascript -e 'display notification "Pi is OFFLINE" with title "work health" sound name "Basso"' 2>/dev/null
-        echo "OFFLINE - Pi unreachable at $PI_HOST"
+        osascript -e 'display notification "Workstation is OFFLINE" with title "work health" sound name "Basso"' 2>/dev/null
+        echo "OFFLINE - workstation unreachable at $PI_HOST"
         exit 1
     fi
 
@@ -484,7 +731,7 @@ cmd_health() {
 }
 
 cmd_watch() {
-    echo "Monitoring Pi (Ctrl+C to stop)..."
+    echo "Monitoring workstation (Ctrl+C to stop)..."
     while true; do
         clear
         cmd_health
@@ -493,7 +740,7 @@ cmd_watch() {
 }
 
 # --- report ---
-# Merges Mac local log + each Pi client's log (iterates client users)
+# Merges Mac local log + each workstation client's log (iterates client users)
 cmd_report() {
     local period="${1:---week}"
     local local_log="${XDG_DATA_HOME:-$HOME/.local/share}/work-tracker/log.tsv"
@@ -505,7 +752,7 @@ cmd_report() {
     # Mac local log
     [ -f "$local_log" ] && tail -n +2 "$local_log" >> "$tmp"
 
-    # Iterate client users on Pi and pull each log (via admin sudo)
+    # Iterate client users on the workstation and pull each log (via admin sudo)
     local clients
     clients=$(_list_clients)
     if [ -n "$clients" ]; then
@@ -526,7 +773,7 @@ cmd_report() {
 }
 
 # --- ssh-keygen ---
-# Generates an SSH key on the Pi inside the CLIENT user's home (not admin's)
+# Generates an SSH key on the workstation inside the CLIENT user's home (not admin's)
 cmd_ssh_keygen() {
     local client="$1"
     local host="${2:-github.com}"
@@ -534,7 +781,7 @@ cmd_ssh_keygen() {
     if [ -z "$client" ]; then
         echo "Usage: work ssh-keygen <client> [host]"
         echo ""
-        echo "Generates an SSH key in the client's home on the Pi"
+        echo "Generates an SSH key in the client's home on the workstation"
         echo ""
         echo "Examples:"
         echo "  work ssh-keygen acme                 # github.com (default)"
@@ -596,13 +843,13 @@ cmd_tracker_status() {
     local clients
     clients=$(_list_clients)
     if [ -z "$clients" ]; then
-        echo "(no client users on Pi)"
+        echo "(no client users on workstation)"
         return
     fi
 
     while IFS= read -r client; do
         [ -z "$client" ] && continue
-        echo "=== Pi: $client ==="
+        echo "=== Workstation: $client ==="
         _ssh_quiet "sudo -u $client /home/$client/.local/bin/work-tracker status 2>/dev/null" || echo "  (unreachable)"
         echo ""
     done <<< "$clients"
@@ -613,18 +860,21 @@ cmd_help() {
     echo "work - Manage freelance workspaces on Linux server (multi-user)"
     echo ""
     echo "Commands:"
+    echo "  work doctor [client]              General workstation/client health checks"
     echo "  work connect [client] [project]   SSH as client + tmux (fuzzy project match)"
     echo "  work user-create <client>         Create a dedicated Linux user for a client"
-    echo "  work status                       fastfetch-style Pi status"
+    echo "  work status                       fastfetch-style workstation status"
     echo "  work health                       Quick health check with alerts"
     echo "  work watch [seconds]              Live monitor (default: 30s)"
     echo "  work sync <client> [dir] [sub]    Rsync local dir to client's home"
-    echo "  work browse <client>              Chrome isolated via Pi network"
+    echo "  work browse <client>              Chrome isolated via workstation network"
     echo "  work browse-stop [client]         Stop SOCKS proxy"
     echo "  work agvty <client>               Antigravity via X11 forwarding"
     echo "  work agvty-stop [client]          Stop Antigravity session"
     echo "  work vpn-up <client>              Start client VPN"
     echo "  work vpn-down <client>            Stop client VPN"
+    echo "  work tailscale-doctor [client]    Check personal + secondary Tailscale"
+    echo "  work vpn-doctor [client]          Alias for tailscale-doctor"
     echo "  work ssh-keygen <client> [host]   Generate SSH key in client's home"
     echo "  work destroy <client>             Remove user + home + VPN + keys"
     echo ""
@@ -633,14 +883,17 @@ cmd_help() {
     echo "  work tracker-status               Active sessions (Mac + each client)"
     echo ""
     echo "Config (env vars):"
-    echo "  WORK_PI_HOST         Server hostname (default: workstation)"
-    echo "  WORK_PI_USER         Admin user on server (default: max)"
-    echo "  WORK_DOTFILES_REPO   Dotfiles repo URL for new users"
+    echo "  WORKSTATION_HOST           Server hostname (default: workstation)"
+    echo "  WORKSTATION_USER           Admin user on server (default: max)"
+    echo "  WORKSTATION_DOTFILES_REPO  Dotfiles repo URL for new users"
+    echo ""
+    echo "Legacy env vars still work: WORK_PI_HOST, WORK_PI_USER, WORK_DOTFILES_REPO"
 }
 
 case "${1:-}" in
     connect)        shift; cmd_connect "$@" ;;
     user-create)    shift; cmd_user_create "$@" ;;
+    doctor)         shift; cmd_doctor "$@" ;;
     status)         cmd_status ;;
     health)         cmd_health ;;
     watch)          shift; cmd_watch "$@" ;;
@@ -651,6 +904,8 @@ case "${1:-}" in
     agvty-stop)     shift; cmd_agvty_stop "$@" ;;
     vpn-up)         shift; cmd_vpn_up "$@" ;;
     vpn-down)       shift; cmd_vpn_down "$@" ;;
+    tailscale-doctor) shift; cmd_tailscale_doctor "$@" ;;
+    vpn-doctor)     shift; cmd_tailscale_doctor "$@" ;;
     destroy)        shift; cmd_destroy "$@" ;;
     ssh-keygen)     shift; cmd_ssh_keygen "$@" ;;
     report)         shift; cmd_report "$@" ;;

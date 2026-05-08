@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Compatibility wrapper while Linux server scripts migrate to workstation/.
+
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$ROOT/linux/bootstrap.sh" "$@"

@@ -1,0 +1,145 @@
+#!/bin/bash
+
+# envy-doctor: Validate Envy structure and encrypted contexts without printing secrets.
+# Usage: envy-doctor [context]
+
+set -u
+
+ENVY_DIR="${ENVY_DIR:-$HOME/.envy}"
+ENVY_KEYS_DIR="${ENVY_DIR}/keys"
+ENVY_CONFIG="${ENVY_DIR}/config"
+CONTEXT_FILTER="${1:-}"
+FAIL=0
+WARN=0
+
+ok() { printf 'ok   %s\n' "$*"; }
+warn() { printf 'warn %s\n' "$*"; WARN=$((WARN + 1)); }
+fail() { printf 'fail %s\n' "$*"; FAIL=$((FAIL + 1)); }
+
+mode_of() {
+    stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1" 2>/dev/null || echo ""
+}
+
+check_mode_private() {
+    local path="$1"
+    local mode
+    mode="$(mode_of "$path")"
+    case "$mode" in
+        600|400) ok "private permissions: $path ($mode)" ;;
+        "") warn "could not inspect permissions: $path" ;;
+        *) warn "permissions should be 600 or 400: $path ($mode)" ;;
+    esac
+}
+
+context_names() {
+    if [ -n "$CONTEXT_FILTER" ]; then
+        printf '%s\n' "$CONTEXT_FILTER"
+    else
+        find "$ENVY_KEYS_DIR" -maxdepth 1 -type f -name '*.key' 2>/dev/null \
+            | sed 's|.*/||; s|\.key$||' \
+            | sort
+    fi
+}
+
+echo "envy doctor"
+echo "  dir: $ENVY_DIR"
+echo ""
+
+echo "== Commands =="
+if command -v age >/dev/null 2>&1; then
+    ok "age available"
+else
+    fail "age missing"
+fi
+
+if command -v age-keygen >/dev/null 2>&1; then
+    ok "age-keygen available"
+else
+    fail "age-keygen missing"
+fi
+
+echo ""
+echo "== Structure =="
+[ -d "$ENVY_DIR" ] && ok "directory exists: $ENVY_DIR" || fail "missing directory: $ENVY_DIR"
+[ -d "$ENVY_KEYS_DIR" ] && ok "keys directory exists" || fail "missing keys directory: $ENVY_KEYS_DIR"
+
+if [ -f "$ENVY_CONFIG" ]; then
+    ok "config exists"
+    current_context="$(tr -d '[:space:]' < "$ENVY_CONFIG")"
+    if [ -n "$current_context" ]; then
+        ok "current context: $current_context"
+    else
+        warn "config is empty"
+    fi
+else
+    warn "config missing"
+fi
+
+if [ -f "$ENVY_DIR/.gitignore" ]; then
+    ok ".gitignore exists"
+    grep -q '^keys/' "$ENVY_DIR/.gitignore" && ok ".gitignore excludes keys/" || warn ".gitignore does not exclude keys/"
+    grep -q '\*.key' "$ENVY_DIR/.gitignore" && ok ".gitignore excludes *.key" || warn ".gitignore does not exclude *.key"
+else
+    warn ".gitignore missing"
+fi
+
+echo ""
+echo "== Contexts =="
+if [ ! -d "$ENVY_KEYS_DIR" ]; then
+    echo ""
+    echo "envy doctor failed: $FAIL failure(s), $WARN warning(s)"
+    exit 1
+fi
+
+contexts="$(context_names)"
+if [ -z "$contexts" ]; then
+    warn "no contexts found"
+else
+    while IFS= read -r context; do
+        [ -z "$context" ] && continue
+        key_file="$ENVY_KEYS_DIR/$context.key"
+        envy_file="$ENVY_DIR/$context.envy.age"
+
+        echo "-- $context --"
+        if [ -f "$key_file" ]; then
+            ok "key exists"
+            check_mode_private "$key_file"
+            if age-keygen -y "$key_file" >/dev/null 2>&1; then
+                ok "key is readable by age-keygen"
+            else
+                fail "key is invalid or unreadable"
+            fi
+        else
+            fail "key missing: $key_file"
+        fi
+
+        if [ -f "$envy_file" ]; then
+            ok "encrypted file exists"
+            if [ -f "$key_file" ] && age -d -i "$key_file" "$envy_file" >/dev/null 2>&1; then
+                ok "encrypted file decrypts"
+                count="$(age -d -i "$key_file" "$envy_file" 2>/dev/null | grep -c '^[^#].*=' || true)"
+                ok "variables: $count"
+            else
+                fail "encrypted file cannot be decrypted with its key"
+            fi
+        else
+            warn "encrypted file missing: $envy_file"
+        fi
+        echo ""
+    done <<< "$contexts"
+fi
+
+if [ -n "${current_context:-}" ] && [ ! -f "$ENVY_KEYS_DIR/$current_context.key" ]; then
+    warn "current context has no key: $current_context"
+fi
+
+if find "$ENVY_DIR" -maxdepth 1 -type f -name '*.envy' 2>/dev/null | grep -q .; then
+    warn "decrypted *.envy files exist in $ENVY_DIR"
+fi
+
+if [ "$FAIL" -gt 0 ]; then
+    echo "envy doctor failed: $FAIL failure(s), $WARN warning(s)"
+    exit 1
+fi
+
+echo "envy doctor passed: $WARN warning(s)"

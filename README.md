@@ -1,6 +1,11 @@
-# dotfiles
+# workstation
 
-Cross-platform dotfiles for macOS and Linux (Raspberry Pi).
+Personal workstation automation for macOS and a headless Linux workstation.
+
+This started as dotfiles and still includes shell/editor config, but the main
+goal is now a reproducible 24/7 development workstation: macOS as the local
+operator machine, a Dell/Linux host as the always-on server, and isolated client
+workspaces reached through SSH, tmux, and Tailscale.
 
 ## Quick start
 
@@ -8,29 +13,35 @@ Cross-platform dotfiles for macOS and Linux (Raspberry Pi).
 git clone git@github.com:maxflorentin/dotfiles-mbairm4.git ~/.dotfiles
 cd ~/.dotfiles
 ./install
+workstation doctor
 ```
 
 **Fresh Mac?** After `./install`, run `macos/fresh.sh` for Homebrew, apps, and macOS defaults.
 
-**Fresh Pi/Linux?** Run `linux/bootstrap.sh` to install everything from scratch.
+**Fresh workstation?** Run `workstation bootstrap` on the Linux server to install everything from scratch.
+
+**Corporate Mac?** Run `./install-corporate` for a smaller, non-invasive setup.
 
 ## Structure
 
 ```
 ~/.dotfiles/
 ├── install              # Idempotent setup (detects OS)
+├── workstation/         # Local workstation CLI, doctor, compatibility wrappers
 ├── shell/               # zshrc, aliases, path, starship
 ├── macos/               # Brewfile, fresh.sh, defaults, mackup
-├── linux/               # tmux, bootstrap, work CLI, tmux-layout
+├── linux/               # Legacy server scripts during migration
 ├── editors/             # nvim, vscode, iterm2
 ├── scripts/             # envy, gh-clone-org, brew-sync, etc.
-└── docs/                # pi-workstation, envy
+├── tests/               # Smoke tests and validation
+└── docs/                # workstation, tailscale-client, envy
 ```
 
 ## What `./install` does
 
 - Symlinks `.zshrc`, nvim config, gitignore
 - Links scripts to `~/.local/bin`
+- Links the `workstation` CLI
 - **macOS**: VS Code settings, mackup, work CLI
 - **Linux**: tmux config, tmux-layout, work CLI
 
@@ -40,12 +51,23 @@ Safe to run multiple times.
 
 | Tool | What it does |
 |------|-------------|
-| `work` | Manage Pi workspaces (connect, setup, sync, VPN, browse) |
+| `workstation` | Local doctor/smoke/bootstrap entrypoint |
+| `work` | Manage client workspaces on the Linux workstation |
 | `envy-*` | Age-encrypted secret management |
 | `brew-sync` | Auto-dump Brewfile and commit changes |
 | `gh-clone-org` | Clone all repos from a GitHub org |
 
+## Validation
+
+```bash
+workstation smoke              # local syntax/help checks, no network
+workstation doctor             # local host/repo validation
+work doctor [client]           # remote workstation/client health checks
+work vpn-doctor [client]       # personal + secondary Tailscale checks
+```
+
 ## Docs
 
-- [Pi Workstation](docs/pi-workstation.md) - Raspberry Pi dev server setup
+- [Workstation](docs/workstation.md) - headless Linux workstation architecture
+- [Secondary Tailscale](docs/tailscale-client.md) - client tailnet isolation
 - [Envy](docs/envy.md) - Encrypted secrets manager

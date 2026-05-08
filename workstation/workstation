@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# workstation: Local workstation maintenance CLI.
+# Safe default commands only; provisioning and destructive operations live behind
+# explicit subcommands or the existing `work` CLI.
+
+set -e
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    TARGET="$(readlink "$SOURCE")"
+    case "$TARGET" in
+        /*) SOURCE="$TARGET" ;;
+        *) SOURCE="$DIR/$TARGET" ;;
+    esac
+done
+ROOT="$(cd "$(dirname "$SOURCE")/.." && pwd)"
+
+cmd_help() {
+    cat <<'EOF'
+workstation - local workstation maintenance
+
+Commands:
+  workstation doctor        Validate local repo and host prerequisites
+  workstation smoke         Run fast syntax/smoke checks
+  workstation bootstrap     Run legacy Linux workstation bootstrap
+
+Notes:
+  Remote/client operations live in `work`.
+  Legacy server scripts still live in linux/ while the repo migrates.
+EOF
+}
+
+case "${1:-}" in
+    doctor)
+        shift
+        exec "$ROOT/workstation/doctor" "$@"
+        ;;
+    smoke)
+        shift
+        exec "$ROOT/tests/smoke.sh" "$@"
+        ;;
+    bootstrap)
+        shift
+        exec "$ROOT/linux/bootstrap.sh" "$@"
+        ;;
+    help|-h|--help|"")
+        cmd_help
+        ;;
+    *)
+        echo "Unknown command: $1" >&2
+        echo "" >&2
+        cmd_help >&2
+        exit 2
+        ;;
+esac
