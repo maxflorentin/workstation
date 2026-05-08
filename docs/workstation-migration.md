@@ -111,3 +111,5 @@ expected to report that the secondary instance is missing.
 - Each client has an explicit decision for Docker group membership.
 - Each client has an explicit decision for secondary Tailscale.
 - Compliance-sensitive clients pass `work compliance-doctor <client>`.
+- DNS filtering config may use `systemd-resolved` or `dnsmasq`; real NextDNS
+  profile IDs stay in host-local files only.

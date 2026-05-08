@@ -385,14 +385,23 @@ cmd_compliance_doctor() {
 
     echo ""
     echo "== Web Filtering =="
-    local nextdns_count
-    nextdns_count=$(_ssh_quiet "grep -c 'dns.nextdns.io' /etc/systemd/resolved.conf 2>/dev/null" || echo 0)
-    if [ "${nextdns_count:-0}" -ge 2 ] 2>/dev/null; then
-        _ok "resolved.conf contains NextDNS endpoints ($nextdns_count)"
+    local resolved_nextdns dnsmasq_nextdns resolved_dot dnsmasq_active resolved_active
+    resolved_nextdns=$(_ssh_quiet "grep -c 'dns.nextdns.io' /etc/systemd/resolved.conf 2>/dev/null" || echo 0)
+    resolved_dot=$(_ssh_quiet "grep -ci '^DNSOverTLS=yes' /etc/systemd/resolved.conf 2>/dev/null" || echo 0)
+    dnsmasq_nextdns=$(_ssh_quiet "grep -R -c -E '(^server=(45\\.90\\.28\\.0|45\\.90\\.30\\.0|2a07:a8c0::|2a07:a8c1::)|^add-cpe-id=)' /etc/dnsmasq.conf /etc/dnsmasq.d 2>/dev/null | awk -F: '{s+=\$2} END{print s+0}'" || echo 0)
+    _ssh_quiet "systemctl is-active --quiet systemd-resolved.service" && resolved_active=1 || resolved_active=0
+    _ssh_quiet "systemctl is-active --quiet dnsmasq.service" && dnsmasq_active=1 || dnsmasq_active=0
+
+    if [ "${resolved_nextdns:-0}" -ge 2 ] 2>/dev/null; then
+        _ok "systemd-resolved contains NextDNS endpoints ($resolved_nextdns)"
+        [ "$resolved_active" -eq 1 ] && _ok "systemd-resolved active" || _warn "systemd-resolved not active"
+        [ "${resolved_dot:-0}" -ge 1 ] 2>/dev/null && _ok "DNS-over-TLS enabled" || _warn "DNS-over-TLS not enabled"
+    elif [ "${dnsmasq_nextdns:-0}" -ge 3 ] 2>/dev/null; then
+        _ok "dnsmasq contains NextDNS configuration"
+        [ "$dnsmasq_active" -eq 1 ] && _ok "dnsmasq active" || _warn "dnsmasq not active"
     else
-        _fail "resolved.conf missing NextDNS endpoints"
+        _fail "NextDNS configuration missing for systemd-resolved or dnsmasq"
     fi
-    _ssh_quiet "systemctl is-active --quiet systemd-resolved.service" && _ok "systemd-resolved active" || _warn "systemd-resolved not active"
 
     echo ""
     echo "== Antivirus =="

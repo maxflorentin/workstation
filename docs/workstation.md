@@ -49,6 +49,10 @@ Linux workstation
 | `work vpn-doctor [client]` | Mac -> server | Validate personal and secondary Tailscale |
 | `envy-doctor [context]` | local user | Validate secret-store health without printing secrets |
 
+`work compliance-doctor <client>` accepts either a `systemd-resolved`
+NextDNS-over-TLS configuration or a `dnsmasq` NextDNS configuration. Real
+profile IDs belong only in host-local config files and must not be committed.
+
 ## Configuration
 
 Preferred environment variables:
