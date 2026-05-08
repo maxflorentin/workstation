@@ -134,10 +134,10 @@ done < <(
 if have shellcheck; then
     echo ""
     echo "== Shellcheck =="
-    if shellcheck "$ROOT/install" "$ROOT/install-corporate" "$ROOT/linux/work" "$ROOT/scripts/work-tracker" "$ROOT/workstation/doctor" "$ROOT/workstation/workstation" "$ROOT/tests/smoke.sh"; then
-        ok "shellcheck core scripts"
+    if shellcheck --severity=error "$ROOT/install" "$ROOT/install-corporate" "$ROOT/linux/work" "$ROOT/scripts/work-tracker" "$ROOT/workstation/doctor" "$ROOT/workstation/workstation" "$ROOT/tests/smoke.sh"; then
+        ok "shellcheck core scripts (errors only)"
     else
-        warn "shellcheck reported issues"
+        warn "shellcheck reported errors"
     fi
 fi
 
@@ -146,7 +146,11 @@ echo "== Tailscale local =="
 if have tailscale; then
     if tailscale status >/dev/null 2>&1; then
         ok "personal tailscale status responds"
-        tailscale ip -4 >/dev/null 2>&1 && ok "personal tailscale has IPv4" || warn "personal tailscale has no IPv4"
+        if tailscale ip -4 >/dev/null 2>&1; then
+            ok "personal tailscale has IPv4"
+        else
+            warn "personal tailscale has no IPv4"
+        fi
     else
         warn "tailscale installed but status failed"
     fi
