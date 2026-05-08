@@ -44,6 +44,7 @@ Linux workstation
 | `workstation bootstrap` | Linux server | Install workstation base packages |
 | `work doctor [client]` | Mac -> server | General workstation/client health checks |
 | `work connect <client>` | Mac -> server | SSH into client tmux workspace |
+| `work tailscale-setup <client>` | Mac -> server | Install secondary Tailscale daemon for a client |
 | `work vpn-doctor [client]` | Mac -> server | Validate personal and secondary Tailscale |
 | `envy-doctor [context]` | local user | Validate secret-store health without printing secrets |
 
@@ -105,6 +106,22 @@ The workstation is intentionally not a shared sudo environment.
 
 Docker group membership is still treated as privileged host access. A client in
 the `docker` group is effectively trusted with broad control over the host.
+New client users are not added to `docker` by default. Use
+`WORK_CLIENT_DOCKER=1 work user-create <client>` only when that tradeoff is
+intentional.
+
+## Workstation Packages
+
+The Linux bootstrap installs operational validation tools such as `shellcheck`
+and `lm-sensors`. Existing hosts can be brought in line manually:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y shellcheck lm-sensors
+sudo sensors-detect
+```
+
+`sensors-detect` is interactive and should be run as `max`.
 
 ## Migration Notes
 

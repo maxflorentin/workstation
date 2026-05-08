@@ -36,6 +36,13 @@ sudo ~/.dotfiles/linux/tailscale-client-setup.sh <user>
 
 Creates: systemd service, wrapper script, sudoers rules.
 
+From the Mac, after the workstation has this repo installed:
+
+```bash
+work tailscale-setup <user>
+work vpn-doctor <user>
+```
+
 ## Daily usage (as client user)
 
 ```bash

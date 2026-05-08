@@ -88,7 +88,7 @@ cmd_user_create() {
     echo ""
 
     # Phase 1: admin-side ops (useradd, SSH keys, dotfiles clone + install)
-    _ssh_data "sudo DOTFILES_REPO='$DOTFILES_REPO' PI_USER='$PI_USER' CLIENT='$client' bash -s" <<'REMOTE'
+    _ssh_data "sudo DOTFILES_REPO='$DOTFILES_REPO' PI_USER='$PI_USER' CLIENT='$client' WORK_CLIENT_DOCKER='${WORK_CLIENT_DOCKER:-0}' bash -s" <<'REMOTE'
 set -e
 
 if id "$CLIENT" &>/dev/null; then
@@ -99,10 +99,9 @@ else
     echo "  user $CLIENT created (home: /home/$CLIENT)"
 fi
 
-# Share the Docker daemon with the client (images/volumes are rootful, in
-# /var/lib/docker — cero duplicación). Group 'docker' grants socket access.
-# Idempotent: usermod -aG on an already-member user is a no-op.
-if getent group docker >/dev/null 2>&1; then
+# Optional: share the Docker daemon with the client. This is privileged host
+# access, so it is opt-in.
+if [ "${WORK_CLIENT_DOCKER:-0}" = "1" ] && getent group docker >/dev/null 2>&1; then
     usermod -aG docker "$CLIENT"
     echo "  user $CLIENT added to docker group"
 fi
@@ -313,6 +312,12 @@ cmd_tailscale_doctor() {
         _ssh_quiet "grep -q -- '--tun=userspace-networking' '$unit'" && _ok "secondary daemon uses userspace networking" || _fail "secondary daemon is not configured for userspace networking"
         _ssh_quiet "grep -q -- '--accept-routes is blocked' '$wrapper'" && _ok "wrapper blocks --accept-routes" || _fail "wrapper does not appear to block --accept-routes"
         _ssh_quiet "sudo -n tailscale --socket='$socket' status >/dev/null 2>&1" && _ok "secondary tailscale status responds" || _warn "secondary tailscale status failed"
+
+        if [ "$failures" -gt 0 ]; then
+            echo ""
+            echo "To install a secondary Tailscale instance:"
+            echo "  work tailscale-setup $client"
+        fi
     fi
 
     echo ""
@@ -322,6 +327,19 @@ cmd_tailscale_doctor() {
     fi
 
     echo "tailscale doctor passed: $warnings warning(s)"
+}
+
+cmd_tailscale_setup() {
+    local client="${1:-}"
+    if [ -z "$client" ]; then
+        echo "Usage: work tailscale-setup <client>"
+        echo ""
+        echo "Installs the secondary Tailscale daemon/wrapper for a client user."
+        echo "Requires sudo on the workstation."
+        exit 1
+    fi
+    _validate_client_name "$client"
+    _ssh_tty "sudo ~/.dotfiles/workstation/tailscale-client-setup '$client'"
 }
 
 # --- doctor ---
@@ -408,6 +426,7 @@ ram_pct=$(free | awk '/Mem/{printf "%.0f", $3/$2*100}')
 disk_pct=$(df / | awk 'NR==2{gsub(/%/,""); print $5}')
 load=$(awk '{print $1}' /proc/loadavg)
 temp_file=$(find /sys/class/thermal -name temp -type f 2>/dev/null | head -1)
+[ -z "$temp_file" ] && temp_file=$(find /sys/class/hwmon -name 'temp*_input' -type f 2>/dev/null | head -1)
 temp_c=""
 if [ -n "$temp_file" ]; then
     temp_raw=$(cat "$temp_file" 2>/dev/null || echo "")
@@ -425,8 +444,10 @@ REMOTE
     [ "${disk_pct:-0}" -lt 85 ] 2>/dev/null && _ok "root disk below 85%" || _warn "root disk high: ${disk_pct:-unknown}%"
     if [ -n "${temp_c:-}" ]; then
         [ "$temp_c" -lt 80 ] 2>/dev/null && _ok "temperature below 80C" || _warn "temperature high: ${temp_c}C"
+    elif _ssh_quiet "command -v sensors >/dev/null"; then
+        _warn "temperature sensor unavailable through sysfs"
     else
-        _warn "temperature sensor unavailable"
+        _warn "temperature sensor unavailable; install lm-sensors and run sensors-detect"
     fi
 
     echo ""
@@ -873,6 +894,7 @@ cmd_help() {
     echo "  work agvty-stop [client]          Stop Antigravity session"
     echo "  work vpn-up <client>              Start client VPN"
     echo "  work vpn-down <client>            Stop client VPN"
+    echo "  work tailscale-setup <client>     Install secondary Tailscale for client"
     echo "  work tailscale-doctor [client]    Check personal + secondary Tailscale"
     echo "  work vpn-doctor [client]          Alias for tailscale-doctor"
     echo "  work ssh-keygen <client> [host]   Generate SSH key in client's home"
@@ -904,6 +926,7 @@ case "${1:-}" in
     agvty-stop)     shift; cmd_agvty_stop "$@" ;;
     vpn-up)         shift; cmd_vpn_up "$@" ;;
     vpn-down)       shift; cmd_vpn_down "$@" ;;
+    tailscale-setup) shift; cmd_tailscale_setup "$@" ;;
     tailscale-doctor) shift; cmd_tailscale_doctor "$@" ;;
     vpn-doctor)     shift; cmd_tailscale_doctor "$@" ;;
     destroy)        shift; cmd_destroy "$@" ;;

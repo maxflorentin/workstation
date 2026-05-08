@@ -35,7 +35,7 @@ sudo apt-get install -y -qq \
     jq ripgrep fd-find bat fzf eza autojump \
     zsh zsh-syntax-highlighting \
     lsof ecryptfs-utils \
-    fastfetch
+    fastfetch shellcheck lm-sensors
 
 # --- Docker ---
 echo "[4/10] Installing Docker..."
