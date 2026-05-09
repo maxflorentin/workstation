@@ -203,6 +203,7 @@ For ClamAV setup, use `work clamav-setup` and then verify with
 
 ## Migration Notes
 
-The old `linux/` directory remains as the compatibility layer during the
-migration. New orchestration entrypoints should live under `workstation/`; large
-legacy scripts can move later after wrappers and tests are in place.
+The `linux/` directory remains for Linux workstation scripts and compatibility
+entrypoints. New orchestration entrypoints should live under `workstation/`
+where practical; keep compatibility wrappers in place until installed commands
+and docs have moved.

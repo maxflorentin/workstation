@@ -26,11 +26,11 @@ Commands:
   workstation smoke         Run fast syntax/smoke checks
   workstation lint          Run repo lint and sanitization checks
   workstation ci            Run lint and smoke checks
-  workstation bootstrap     Run legacy Linux workstation bootstrap
+  workstation bootstrap     Run Linux workstation bootstrap
 
 Notes:
   Remote/client operations live in `work`.
-  Legacy server scripts still live in linux/ while the repo migrates.
+  Some server compatibility scripts still live in linux/.
 EOF
 }
 

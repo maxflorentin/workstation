@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Compatibility wrapper while Linux server scripts migrate to workstation/.
+# Compatibility wrapper for the tmux workspace layout.
 
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

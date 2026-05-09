@@ -30,7 +30,7 @@ workstation doctor
 ├── workstation/         # Local workstation CLI, doctor, compatibility wrappers
 ├── shell/               # zshrc, aliases, path, starship
 ├── macos/               # Brewfile, fresh.sh, defaults, mackup
-├── linux/               # Legacy server scripts during migration
+├── linux/               # Linux workstation scripts and compatibility entrypoints
 ├── editors/             # nvim, vscode, iterm2
 ├── scripts/             # envy, gh-clone-org, brew-sync, etc.
 ├── tests/               # Smoke tests and validation

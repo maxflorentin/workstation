@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Compatibility wrapper while Linux server scripts migrate to workstation/.
+# Compatibility wrapper for the Linux workstation bootstrap entrypoint.
 
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
