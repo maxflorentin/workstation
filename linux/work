@@ -387,7 +387,7 @@ cmd_tailscale_setup() {
 }
 
 # --- compliance-doctor ---
-# Non-destructive checks for common client compliance requirements.
+# Non-destructive checks for an optional per-client compliance profile.
 cmd_compliance_doctor() {
     local client="${1:-}"
     local failures=0
@@ -400,7 +400,8 @@ cmd_compliance_doctor() {
     if [ -z "$client" ]; then
         echo "Usage: work compliance-doctor <client>"
         echo ""
-        echo "Checks endpoint agent, DNS filtering, antivirus, and home/disk encryption."
+        echo "Checks optional per-client compliance controls:"
+        echo "  endpoint agent, scoped file monitoring, DNS filtering, antivirus, encryption."
         exit 1
     fi
     _validate_client_name "$client"
@@ -420,6 +421,28 @@ cmd_compliance_doctor() {
     echo ""
     echo "== Endpoint Agent =="
     _ssh_quiet "systemctl is-active --quiet wazuh-agent.service" && _ok "wazuh-agent active" || _fail "wazuh-agent inactive"
+
+    local wazuh_dirs
+    wazuh_dirs=$(_ssh_quiet "awk '/<syscheck>/,/<\\/syscheck>/' /var/ossec/etc/ossec.conf 2>/dev/null | sed -n 's/.*<directories[^>]*>\\([^<]*\\)<\\/directories>.*/\\1/p'" || true)
+    if [ -z "$wazuh_dirs" ]; then
+        wazuh_dirs=$(_ssh_quiet "sudo -n awk '/<syscheck>/,/<\\/syscheck>/' /var/ossec/etc/ossec.conf 2>/dev/null | sed -n 's/.*<directories[^>]*>\\([^<]*\\)<\\/directories>.*/\\1/p'" || true)
+    fi
+    if [ -n "$wazuh_dirs" ]; then
+        if echo "$wazuh_dirs" | tr ',' '\n' | awk '{gsub(/^[ \t]+|[ \t]+$/, ""); print}' | grep -qx "/home/$client"; then
+            _ok "wazuh syscheck includes /home/$client"
+        else
+            _fail "wazuh syscheck does not include /home/$client"
+        fi
+
+        if echo "$wazuh_dirs" | tr ',' '\n' | awk '{gsub(/^[ \t]+|[ \t]+$/, ""); print}' | grep -Eq '^(/|/home|/home/max|/etc|/usr|/usr/bin|/usr/sbin|/bin|/sbin|/boot)$'; then
+            _fail "wazuh syscheck includes global/non-client paths"
+        else
+            _ok "wazuh syscheck avoids global/non-client paths"
+        fi
+    else
+        _fail "wazuh syscheck scope not verifiable"
+        echo "     run on the workstation with sudo: sudo ~/.local/bin/work compliance-doctor $client"
+    fi
 
     echo ""
     echo "== Web Filtering =="
@@ -1038,7 +1061,7 @@ cmd_help() {
     echo ""
     echo "Commands:"
     echo "  work doctor [client]              General workstation/client health checks"
-    echo "  work compliance-doctor <client>   Check compliance services and encryption"
+    echo "  work compliance-doctor <client>   Check optional per-client compliance profile"
     echo "  work clamav-setup                 Install and initialize ClamAV"
     echo "  work connect [client] [project]   SSH as client + tmux (fuzzy project match)"
     echo "  work user-create <client>         Create a dedicated Linux user for a client"

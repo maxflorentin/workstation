@@ -48,6 +48,8 @@ sudo sensors-detect
 `sensors-detect` is interactive. Accept safe defaults unless there is a reason
 to override them.
 
+For compliance-sensitive clients, initialize ClamAV with `work clamav-setup`.
+
 ## Validate
 
 On the workstation:
@@ -68,8 +70,20 @@ For each client user:
 
 ```bash
 work doctor <client>
-work compliance-doctor <client>
 work vpn-doctor <client>
+```
+
+Only for clients that explicitly require the compliance profile:
+
+```bash
+work compliance-doctor <client>
+```
+
+If the doctor cannot verify Wazuh scope because `/var/ossec/etc/ossec.conf` is
+not readable, run it on the workstation with sudo:
+
+```bash
+sudo ~/.local/bin/work compliance-doctor <client>
 ```
 
 ## Client Decisions
@@ -110,6 +124,9 @@ expected to report that the secondary instance is missing.
 - `work vpn-doctor` passes from the Mac.
 - Each client has an explicit decision for Docker group membership.
 - Each client has an explicit decision for secondary Tailscale.
-- Compliance-sensitive clients pass `work compliance-doctor <client>`.
+- Clients that explicitly require the compliance profile pass
+  `work compliance-doctor <client>`.
+- Wazuh syscheck is scoped to `/home/<client>` and does not monitor global paths
+  or other homes.
 - DNS filtering config may use `systemd-resolved` or `dnsmasq`; real NextDNS
   profile IDs stay in host-local files only.

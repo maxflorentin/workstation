@@ -43,15 +43,32 @@ Linux workstation
 | `workstation doctor` | local host | Validate prerequisites and links |
 | `workstation bootstrap` | Linux server | Install workstation base packages |
 | `work doctor [client]` | Mac -> server | General workstation/client health checks |
-| `work compliance-doctor <client>` | Mac -> server | Check compliance services, DNS filtering, and encryption |
+| `work compliance-doctor <client>` | Mac -> server | Check optional per-client compliance profile |
 | `work connect <client>` | Mac -> server | SSH into client tmux workspace |
 | `work tailscale-setup <client>` | Mac -> server | Install secondary Tailscale daemon for a client |
 | `work vpn-doctor [client]` | Mac -> server | Validate personal and secondary Tailscale |
 | `envy-doctor [context]` | local user | Validate secret-store health without printing secrets |
 
-`work compliance-doctor <client>` accepts either a `systemd-resolved`
+`work compliance-doctor <client>` is not a workstation-wide baseline. Use it
+only for clients that explicitly require the compliance profile. It checks the
+endpoint agent, Wazuh syscheck scope when readable, DNS filtering, antivirus,
+and encryption.
+
+For DNS filtering, the doctor accepts either a `systemd-resolved`
 NextDNS-over-TLS configuration or a `dnsmasq` NextDNS configuration. Real
 profile IDs belong only in host-local config files and must not be committed.
+
+For Wazuh, syscheck must be scoped to that client home, for example
+`/home/<client>`. It must not monitor `/home`, `/home/max`, `/etc`, `/usr`,
+`/bin`, `/sbin`, or `/boot` for a client-specific compliance profile.
+
+This is a hard isolation rule. Compliance tooling must not undo the repository's
+core model of one client per Linux user. If `work compliance-doctor <client>`
+cannot read the Wazuh configuration, run it on the workstation with sudo:
+
+```bash
+sudo ~/.local/bin/work compliance-doctor <client>
+```
 
 ## Configuration
 
@@ -127,6 +144,9 @@ sudo sensors-detect
 ```
 
 `sensors-detect` is interactive and should be run as `max`.
+
+For ClamAV setup, use `work clamav-setup` and then verify with
+`work compliance-doctor <client>`.
 
 ## Migration Notes
 
