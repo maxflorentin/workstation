@@ -8,6 +8,7 @@ workstation.
 ```bash
 git status --short
 ./tests/smoke.sh
+./tests/lint.sh
 workstation doctor
 work doctor
 work vpn-doctor
@@ -20,6 +21,9 @@ Expected local-only warnings are acceptable on the Mac:
 - `fastfetch` missing
 - `shellcheck` missing
 - `systemctl` missing
+
+If `shellcheck` or `rg` is not installed locally, run `workstation lint` on the
+Linux workstation or rely on CI for that check.
 
 ## Apply On Workstation
 

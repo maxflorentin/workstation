@@ -51,7 +51,7 @@ Safe to run multiple times.
 
 | Tool | What it does |
 |------|-------------|
-| `workstation` | Local doctor/smoke/bootstrap entrypoint |
+| `workstation` | Local doctor/smoke/lint/bootstrap entrypoint |
 | `work` | Manage client workspaces on the Linux workstation |
 | `envy-*` | Age-encrypted secret management |
 | `brew-sync` | Auto-dump Brewfile and commit changes |
@@ -61,6 +61,7 @@ Safe to run multiple times.
 
 ```bash
 workstation smoke              # local syntax/help checks, no network
+workstation lint               # shellcheck, whitespace, sanitization checks
 workstation doctor             # local host/repo validation
 work doctor [client]           # remote workstation/client health checks
 work vpn-doctor [client]       # personal + secondary Tailscale checks

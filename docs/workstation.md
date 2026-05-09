@@ -40,6 +40,7 @@ Linux workstation
 |---------|-------|---------|
 | `./install` | local user | Dotfiles, symlinks, PATH, scripts |
 | `workstation smoke` | repo-local | Fast syntax/help checks |
+| `workstation lint` | repo-local | Shellcheck, whitespace, and sanitization checks |
 | `workstation doctor` | local host | Validate prerequisites and links |
 | `workstation bootstrap` | Linux server | Install workstation base packages |
 | `work doctor [client]` | Mac -> server | General workstation/client health checks |
