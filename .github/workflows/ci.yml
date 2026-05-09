@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install lint tools
+        run: sudo apt-get update && sudo apt-get install -y shellcheck ripgrep
+
+      - name: Smoke
+        run: ./tests/smoke.sh
+
+      - name: Lint
+        run: ./tests/lint.sh
