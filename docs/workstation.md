@@ -48,6 +48,7 @@ Linux workstation
 | `work compliance-doctor <client>` | Mac -> server | Check optional per-client compliance profile |
 | `work backup-doctor` | Mac -> server | Check backup/recovery readiness without copying data |
 | `work connect <client>` | Mac -> server | SSH into client tmux workspace |
+| `WORK_CONNECT_BROWSE=1 work connect <client>` | Mac -> server | SSH into client workspace and open isolated browser |
 | `work tailscale-setup <client>` | Mac -> server | Install secondary Tailscale daemon for a client |
 | `work vpn-doctor [client]` | Mac -> server | Validate personal and secondary Tailscale |
 | `envy-doctor [context]` | local user | Validate secret-store health without printing secrets |

@@ -80,6 +80,13 @@ _list_clients() {
     _ssh_quiet "getent passwd | awk -F: '\$3>=1000 && \$1!=\"$PI_USER\" && \$1!=\"nobody\" && \$1!=\"encryption_user\" && \$7 !~ /(nologin|false)\$/ && \$6 ~ /^\\/home\\// {print \$1}'"
 }
 
+_truthy() {
+    case "${1:-}" in
+        1|true|TRUE|yes|YES|on|ON) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # --- connect ---
 cmd_connect() {
     local client="${1:-}"
@@ -97,6 +104,10 @@ cmd_connect() {
     # Passphrase stored in /etc/ecryptfs/<client>.passphrase (root-only, 600).
     # See: docs/ecryptfs.md
     _ssh_quiet "sudo /usr/local/sbin/ecryptfs-auto-mount '$client'" || true
+
+    if _truthy "${WORK_CONNECT_BROWSE:-}"; then
+        cmd_browse "$client"
+    fi
 
     work-tracker start "$client" "$project" "mac" 2>/dev/null || true
     if [ -n "$project" ]; then
