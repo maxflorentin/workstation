@@ -420,7 +420,11 @@ cmd_compliance_doctor() {
 
     echo ""
     echo "== Endpoint Agent =="
-    _ssh_quiet "systemctl is-active --quiet wazuh-agent.service" && _ok "wazuh-agent active" || _fail "wazuh-agent inactive"
+    if _ssh_quiet "systemctl is-active --quiet wazuh-agent.service"; then
+        _ok "wazuh-agent active"
+    else
+        _fail "wazuh-agent inactive"
+    fi
 
     local wazuh_dirs
     wazuh_dirs=$(_ssh_quiet "awk '/<syscheck>/,/<\\/syscheck>/' /var/ossec/etc/ossec.conf 2>/dev/null | sed -n 's/.*<directories[^>]*>\\([^<]*\\)<\\/directories>.*/\\1/p'" || true)
@@ -450,16 +454,36 @@ cmd_compliance_doctor() {
     resolved_nextdns=$(_ssh_quiet "grep -c 'dns.nextdns.io' /etc/systemd/resolved.conf 2>/dev/null" || echo 0)
     resolved_dot=$(_ssh_quiet "grep -ci '^DNSOverTLS=yes' /etc/systemd/resolved.conf 2>/dev/null" || echo 0)
     dnsmasq_nextdns=$(_ssh_quiet "grep -R -c -E '(^server=(45\\.90\\.28\\.0|45\\.90\\.30\\.0|2a07:a8c0::|2a07:a8c1::)|^add-cpe-id=)' /etc/dnsmasq.conf /etc/dnsmasq.d 2>/dev/null | awk -F: '{s+=\$2} END{print s+0}'" || echo 0)
-    _ssh_quiet "systemctl is-active --quiet systemd-resolved.service" && resolved_active=1 || resolved_active=0
-    _ssh_quiet "systemctl is-active --quiet dnsmasq.service" && dnsmasq_active=1 || dnsmasq_active=0
+    if _ssh_quiet "systemctl is-active --quiet systemd-resolved.service"; then
+        resolved_active=1
+    else
+        resolved_active=0
+    fi
+    if _ssh_quiet "systemctl is-active --quiet dnsmasq.service"; then
+        dnsmasq_active=1
+    else
+        dnsmasq_active=0
+    fi
 
     if [ "${resolved_nextdns:-0}" -ge 2 ] 2>/dev/null; then
         _ok "systemd-resolved contains NextDNS endpoints ($resolved_nextdns)"
-        [ "$resolved_active" -eq 1 ] && _ok "systemd-resolved active" || _warn "systemd-resolved not active"
-        [ "${resolved_dot:-0}" -ge 1 ] 2>/dev/null && _ok "DNS-over-TLS enabled" || _warn "DNS-over-TLS not enabled"
+        if [ "$resolved_active" -eq 1 ]; then
+            _ok "systemd-resolved active"
+        else
+            _warn "systemd-resolved not active"
+        fi
+        if [ "${resolved_dot:-0}" -ge 1 ] 2>/dev/null; then
+            _ok "DNS-over-TLS enabled"
+        else
+            _warn "DNS-over-TLS not enabled"
+        fi
     elif [ "${dnsmasq_nextdns:-0}" -ge 3 ] 2>/dev/null; then
         _ok "dnsmasq contains NextDNS configuration"
-        [ "$dnsmasq_active" -eq 1 ] && _ok "dnsmasq active" || _warn "dnsmasq not active"
+        if [ "$dnsmasq_active" -eq 1 ]; then
+            _ok "dnsmasq active"
+        else
+            _warn "dnsmasq not active"
+        fi
     else
         _fail "NextDNS configuration missing for systemd-resolved or dnsmasq"
     fi
@@ -467,11 +491,27 @@ cmd_compliance_doctor() {
     echo ""
     echo "== Antivirus =="
     for pkg in clamav clamav-daemon clamav-freshclam; do
-        _ssh_quiet "dpkg -s '$pkg' >/dev/null 2>&1" && _ok "package installed: $pkg" || _fail "package missing: $pkg"
+        if _ssh_quiet "dpkg -s '$pkg' >/dev/null 2>&1"; then
+            _ok "package installed: $pkg"
+        else
+            _fail "package missing: $pkg"
+        fi
     done
-    _ssh_quiet "systemctl is-active --quiet clamav-daemon.service" && _ok "clamav-daemon active" || _fail "clamav-daemon inactive"
-    _ssh_quiet "systemctl is-active --quiet clamav-freshclam.service" && _ok "clamav-freshclam active" || _fail "clamav-freshclam inactive"
-    _ssh_quiet "test -s /var/log/clamav/freshclam.log" && _ok "freshclam log exists" || _warn "freshclam log missing or empty"
+    if _ssh_quiet "systemctl is-active --quiet clamav-daemon.service"; then
+        _ok "clamav-daemon active"
+    else
+        _fail "clamav-daemon inactive"
+    fi
+    if _ssh_quiet "systemctl is-active --quiet clamav-freshclam.service"; then
+        _ok "clamav-freshclam active"
+    else
+        _fail "clamav-freshclam inactive"
+    fi
+    if _ssh_quiet "test -s /var/log/clamav/freshclam.log"; then
+        _ok "freshclam log exists"
+    else
+        _warn "freshclam log missing or empty"
+    fi
 
     echo ""
     echo "== Encryption =="
