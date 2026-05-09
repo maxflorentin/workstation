@@ -61,6 +61,7 @@ else
     fail "work help"
 fi
 check_output_contains "work help documents connect browse flag" "$work_help" "work connect [--browse]"
+check_output_contains "work help documents clientrc init" "$work_help" "work clientrc-init [--force] <client>"
 check_output_contains "work help documents browse status flag" "$work_help" "work browse [--status] <client>"
 check_output_contains "work help documents connect browse env" "$work_help" "WORK_CONNECT_BROWSE"
 check_output_contains "work help documents legacy commands" "$work_help" "work legacy"
@@ -70,6 +71,9 @@ check_output_contains "work connect --browse requires client" "$connect_usage" "
 
 browse_usage="$("$ROOT/linux/work" browse --status 2>&1)"
 check_output_contains "work browse --status requires client" "$browse_usage" "Usage: work browse --status <client>"
+
+clientrc_usage="$("$ROOT/linux/work" clientrc-init 2>&1)"
+check_output_contains "work clientrc-init requires client" "$clientrc_usage" "Usage: work clientrc-init [--force] <client>"
 
 legacy_help="$("$ROOT/linux/work" legacy)"
 check_output_contains "work legacy documents vpn-up" "$legacy_help" "work vpn-up <client>"

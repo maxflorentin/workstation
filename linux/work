@@ -186,7 +186,7 @@ cmd_user_create() {
         echo "  - Home at /home/<client> (mode 700)"
         echo "  - Dotfiles clone + install"
         echo "  - SSH authorized_keys seeded from admin's"
-        echo "  - Envy context, .clientrc, Python venv via uv"
+        echo "  - Envy context, .clientrc from template, Python venv via uv"
         exit 1
     fi
 
@@ -243,7 +243,7 @@ sudo -u "$CLIENT" -H bash -lc "cd /home/$CLIENT/.dotfiles && bash ./install" || 
 REMOTE
 
     echo ""
-    echo "Phase 2: seeding envy, venv, .clientrc (as $client)..."
+    echo "Phase 2: seeding envy and venv (as $client)..."
     echo ""
 
     # Phase 2: client-side ops (run as the new user)
@@ -264,35 +264,10 @@ if [ ! -d ~/.venv ] && [ -x ~/.local/bin/uv ]; then
     ~/.local/bin/uv venv ~/.venv >/dev/null 2>&1 && echo "  venv created at ~/.venv"
 fi
 
-# Client profile (sourced by tmux-layout)
-if [ ! -f ~/.clientrc ]; then
-    cat > ~/.clientrc <<CLIENTRC
-# $USER client environment
-# Sourced automatically by tmux-layout on connect
-
-# --- Identity ---
-export CLIENT="$USER"
-
-# --- Secrets (via envy) ---
-# eval \$(envy-load $USER 2>/dev/null)
-
-# --- Cloud & Infra ---
-export AWS_PROFILE=$USER
-export CLOUDSDK_ACTIVE_CONFIG_NAME=$USER
-export DATABRICKS_CONFIG_PROFILE=$USER
-export KUBECONFIG=\$HOME/.kube/config
-
-# --- Python venv ---
-[ -f \$HOME/.venv/bin/activate ] && source \$HOME/.venv/bin/activate
-
-# --- Aliases ---
-# alias k='kubectl'
-CLIENTRC
-    echo "  .clientrc created"
-fi
-
 mkdir -p ~/.kube
 CLIENT_INIT
+
+    cmd_clientrc_init "$client"
 
     echo ""
     echo "User '$client' ready."
@@ -300,6 +275,65 @@ CLIENT_INIT
     echo "Connect with:           work connect $client"
     echo "Generate SSH key:       work ssh-keygen $client"
     echo "Encrypt home (compliance): ssh $client@$PI_HOST sudo ecryptfs-migrate-home -u $client"
+}
+
+# --- clientrc-init ---
+# Installs the sanitized clientrc template into a client user's home.
+cmd_clientrc_init() {
+    local client="${1:-}"
+    local force=0
+
+    if [ "$client" = "--force" ]; then
+        force=1
+        client="${2:-}"
+    elif [ "${2:-}" = "--force" ]; then
+        force=1
+    fi
+
+    if [ -z "$client" ]; then
+        echo "Usage: work clientrc-init [--force] <client>"
+        echo "Copies templates/clientrc.example to /home/<client>/.clientrc on the workstation."
+        exit 1
+    fi
+
+    _validate_client_name "$client"
+
+    _ssh_data "sudo CLIENT='$client' FORCE='$force' PI_USER='$PI_USER' bash -s" <<'REMOTE'
+set -e
+
+if ! id "$CLIENT" >/dev/null 2>&1; then
+    echo "client user does not exist: $CLIENT" >&2
+    exit 1
+fi
+
+dest="/home/$CLIENT/.clientrc"
+if [ -f "$dest" ] && [ "$FORCE" != "1" ]; then
+    echo "  .clientrc already exists (use --force to replace)"
+    exit 0
+fi
+
+template=""
+for candidate in \
+    "/home/$PI_USER/.dotfiles/templates/clientrc.example" \
+    "/home/$CLIENT/.dotfiles/templates/clientrc.example"
+do
+    if [ -f "$candidate" ]; then
+        template="$candidate"
+        break
+    fi
+done
+
+if [ -z "$template" ]; then
+    echo "clientrc template not found" >&2
+    exit 1
+fi
+
+tmp="$(mktemp)"
+sed "s/<client>/$CLIENT/g" "$template" > "$tmp"
+install -o "$CLIENT" -g "$CLIENT" -m 600 "$tmp" "$dest"
+rm -f "$tmp"
+echo "  .clientrc installed from template"
+REMOTE
 }
 
 # --- VPN ---
@@ -1733,6 +1767,8 @@ cmd_help() {
     echo "  work connect [--browse] [client] [project]"
     echo "                                     SSH as client + tmux; optionally open browser"
     echo "  work user-create <client>         Create a dedicated Linux user for a client"
+    echo "  work clientrc-init [--force] <client>"
+    echo "                                     Install sanitized .clientrc template"
     echo "  work status                       fastfetch-style workstation status"
     echo "  work health                       Quick health check with alerts"
     echo "  work watch [seconds]              Live monitor (default: 30s)"
@@ -1766,6 +1802,7 @@ cmd_help() {
 case "${1:-}" in
     connect)        shift; cmd_connect "$@" ;;
     user-create)    shift; cmd_user_create "$@" ;;
+    clientrc-init)   shift; cmd_clientrc_init "$@" ;;
     doctor)         shift; cmd_doctor "$@" ;;
     compliance-doctor) shift; cmd_compliance_doctor "$@" ;;
     clamav-setup)   shift; cmd_clamav_setup "$@" ;;

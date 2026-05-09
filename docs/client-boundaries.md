@@ -55,9 +55,7 @@ system config that is explicitly scoped to that client.
 Start from:
 
 ```bash
-cp ~/.dotfiles/templates/clientrc.example /home/<client>/.clientrc
-sudo chown <client>:<client> /home/<client>/.clientrc
-sudo chmod 600 /home/<client>/.clientrc
+work clientrc-init <client>
 ```
 
 Then edit the file on the workstation with real values. Never commit the
