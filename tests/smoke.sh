@@ -75,6 +75,12 @@ legacy_help="$("$ROOT/linux/work" legacy)"
 check_output_contains "work legacy documents vpn-up" "$legacy_help" "work vpn-up <client>"
 check_output_contains "work legacy points to tailscale" "$legacy_help" "work tailscale-setup <client>"
 
+if [ -f "$ROOT/templates/clientrc.example" ] && grep -q '<client>' "$ROOT/templates/clientrc.example"; then
+    ok "clientrc template exists and stays placeholder-based"
+else
+    fail "clientrc template exists and stays placeholder-based"
+fi
+
 if "$ROOT/scripts/work-tracker" >/dev/null; then
     ok "work-tracker help"
 else

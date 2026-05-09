@@ -33,6 +33,7 @@ workstation doctor
 ├── linux/               # Linux workstation scripts and compatibility entrypoints
 ├── editors/             # nvim, vscode, iterm2
 ├── scripts/             # envy, gh-clone-org, brew-sync, etc.
+├── templates/           # Sanitized examples for client-local config
 ├── tests/               # Smoke tests and validation
 └── docs/                # workstation, tailscale-client, envy
 ```
@@ -74,6 +75,7 @@ work connect --browse <client> # tmux workspace + isolated Chrome profile
 - [Workstation](docs/workstation.md) - headless Linux workstation architecture
 - [Workstation Migration](docs/workstation-migration.md) - applying this foundation to the Dell
 - [Development Workflow](docs/dev-workflow.md) - Mac, workstation, browser, Docker, and mobile flow
+- [Client Boundaries](docs/client-boundaries.md) - what belongs in git vs host-local client config
 - [Secondary Tailscale](docs/tailscale-client.md) - client tailnet isolation
 - [Envy](docs/envy.md) - Encrypted secrets manager
 - [Sanitization](docs/sanitization.md) - rules for keeping private names and infrastructure out of git

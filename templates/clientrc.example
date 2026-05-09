@@ -1,0 +1,29 @@
+# ~/.clientrc
+#
+# Copy this file to /home/<client>/.clientrc on the workstation and edit it
+# there. Do not commit the edited file.
+
+# Human-readable label for local prompts and reports. Keep real names out of
+# the public/sanitized repo.
+WORK_CLIENT_LABEL="<client>"
+
+# Optional default project opened by `work connect <client>`.
+WORK_DEFAULT_PROJECT=""
+
+# Browser companion behavior. Set to 1 in the client user's shell only when
+# `work connect <client>` should also run `work browse <client>`.
+WORK_CONNECT_BROWSE=0
+
+# Optional secondary Tailscale notes. Auth keys, tailnet names, hostnames, and
+# provider URLs belong in the real host-local file, not in this template.
+WORK_CLIENT_TAILSCALE_ENABLED=0
+WORK_CLIENT_TAILSCALE_SOCKET="/run/tailscale-<client>.sock"
+
+# Optional compliance profile. Enable only for clients that explicitly require
+# endpoint agent, DNS filtering, antivirus, and encrypted-home checks.
+WORK_CLIENT_COMPLIANCE_PROFILE=0
+
+# Optional config-only backup enrollment. The target should be a separate
+# private repo or private working tree, never this sanitized repo.
+WORK_CLIENT_CONFIG_BACKUP_TARGET=""
+WORK_CLIENT_CONFIG_BACKUP_RECIPIENT=""

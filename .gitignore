@@ -2,3 +2,9 @@
 .envrc
 .claude/
 editors/nvim/lazy-lock.json
+
+# Real client state belongs outside this sanitized repo.
+.clientrc
+*.clientrc
+clients/
+private-config-backup/
