@@ -307,7 +307,7 @@ cmd_vpn_up() {
     local client="$1"
     if [ -z "$client" ]; then
         echo "Usage: work vpn-up <client-name>"
-        echo "Starts WireGuard VPN for client (config at /etc/wireguard/<client>.conf)"
+        echo "Legacy WireGuard command. Prefer: work tailscale-setup <client>"
         exit 1
     fi
 
@@ -340,6 +340,19 @@ cmd_vpn_down() {
     _validate_client_name "$client"
     _ssh_data "sudo wg-quick down -- '$client'" 2>/dev/null || true
     echo "VPN stopped for $client"
+}
+
+cmd_legacy() {
+    echo "work legacy commands"
+    echo ""
+    echo "These are kept for compatibility, but are not part of the current default workflow."
+    echo ""
+    echo "  work vpn-up <client>              Start legacy WireGuard VPN"
+    echo "  work vpn-down <client>            Stop legacy WireGuard VPN"
+    echo ""
+    echo "Current preferred path:"
+    echo "  work tailscale-setup <client>"
+    echo "  work vpn-doctor <client>"
 }
 
 # --- tailscale-doctor / vpn-doctor ---
@@ -1728,8 +1741,6 @@ cmd_help() {
     echo "  work browse-stop [client]         Stop SOCKS proxy"
     echo "  work agvty <client>               Antigravity via X11 forwarding"
     echo "  work agvty-stop [client]          Stop Antigravity session"
-    echo "  work vpn-up <client>              Start legacy WireGuard VPN"
-    echo "  work vpn-down <client>            Stop legacy WireGuard VPN"
     echo "  work tailscale-setup <client>     Install secondary Tailscale for client"
     echo "  work tailscale-doctor [client]    Check personal + secondary Tailscale"
     echo "  work vpn-doctor [client]          Alias for tailscale-doctor"
@@ -1745,6 +1756,9 @@ cmd_help() {
     echo "  WORKSTATION_USER           Admin user on server (default: max)"
     echo "  WORKSTATION_DOTFILES_REPO  Dotfiles repo URL for new users"
     echo "  WORK_CONNECT_BROWSE        Open browser during work connect when truthy"
+    echo ""
+    echo "Legacy:"
+    echo "  work legacy                Show compatibility commands"
     echo ""
     echo "Legacy env vars still work: WORK_PI_HOST, WORK_PI_USER, WORK_DOTFILES_REPO"
 }
@@ -1765,6 +1779,7 @@ case "${1:-}" in
     browse-stop)    shift; cmd_browse_stop "$@" ;;
     agvty)          shift; cmd_agvty "$@" ;;
     agvty-stop)     shift; cmd_agvty_stop "$@" ;;
+    legacy)         cmd_legacy ;;
     vpn-up)         shift; cmd_vpn_up "$@" ;;
     vpn-down)       shift; cmd_vpn_down "$@" ;;
     tailscale-setup) shift; cmd_tailscale_setup "$@" ;;
