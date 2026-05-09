@@ -1303,17 +1303,50 @@ REMOTE
 }
 
 # --- browse ---
-cmd_browse() {
+_browse_proxy_port() {
     local client="$1"
+    echo $(( 1080 + $(printf '%s' "$client" | cksum | cut -d' ' -f1) % 1000 ))
+}
+
+_browse_chrome_dir() {
+    local client="$1"
+    echo "$HOME/.chrome-clients/$client"
+}
+
+cmd_browse() {
+    local client="${1:-}"
     if [ -z "$client" ]; then
-        echo "Usage: work browse <client>"
+        echo "Usage: work browse [--status] <client>"
         echo "Opens isolated Chrome routed through workstation network/VPN"
         exit 1
     fi
+    local mode="open"
+    if [ "$client" = "--status" ]; then
+        mode="status"
+        client="${2:-}"
+        if [ -z "$client" ]; then
+            echo "Usage: work browse --status <client>"
+            exit 1
+        fi
+    fi
     _validate_client_name "$client"
 
-    local proxy_port=$(( 1080 + $(printf '%s' "$client" | cksum | cut -d' ' -f1) % 1000 ))
-    local chrome_dir="$HOME/.chrome-clients/$client"
+    local proxy_port chrome_dir
+    proxy_port="$(_browse_proxy_port "$client")"
+    chrome_dir="$(_browse_chrome_dir "$client")"
+
+    if [ "$mode" = "status" ]; then
+        echo "browse status"
+        echo "  client:  $client"
+        echo "  proxy:   127.0.0.1:$proxy_port"
+        echo "  profile: $chrome_dir"
+        if lsof -i ":$proxy_port" &>/dev/null; then
+            echo "  state:   proxy running"
+        else
+            echo "  state:   proxy stopped"
+        fi
+        return
+    fi
 
     if ! lsof -i ":$proxy_port" &>/dev/null; then
         echo "Starting SOCKS proxy for $client on port $proxy_port..."
@@ -1335,7 +1368,8 @@ cmd_browse_stop() {
     local client="${1:-}"
     if [ -n "$client" ]; then
         _validate_client_name "$client"
-        local proxy_port=$(( 1080 + $(printf '%s' "$client" | cksum | cut -d' ' -f1) % 1000 ))
+        local proxy_port
+        proxy_port="$(_browse_proxy_port "$client")"
         local pid
         pid=$(lsof -ti ":$proxy_port" 2>/dev/null)
         if [ -n "$pid" ]; then

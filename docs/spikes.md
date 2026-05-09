@@ -22,3 +22,31 @@ Open questions:
 
 Do not implement data backups until the restore model and ownership boundaries
 are explicit.
+
+## Connect Browser Companion
+
+Status: backlog.
+
+Desired workflow:
+
+```bash
+work connect <client>
+```
+
+should optionally start the same isolated browser/proxy setup as:
+
+```bash
+work browse <client>
+```
+
+Design notes:
+
+- Prefer opt-in behavior first, for example `WORK_CONNECT_BROWSE=1`, so a plain
+  SSH/tmux connection does not unexpectedly open Chrome.
+- Keep `work browse <client>` and `work browse-stop <client>` as explicit
+  commands.
+- Reuse the existing per-client SOCKS proxy and Chrome profile naming.
+- Avoid starting duplicate proxies or browser profiles when one is already
+  active.
+- Later, consider a CLI flag such as `work connect --browse <client>` if the
+  command parser is cleaned up.
