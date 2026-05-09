@@ -27,6 +27,7 @@ else
         "$ROOT/linux/work" \
         "$ROOT/macos/defaults.sh" \
         "$ROOT/macos/fresh.sh" \
+        "$ROOT/scripts/brew-sync" \
         "$ROOT/scripts/envy/envy-doctor" \
         "$ROOT/scripts/work-tracker" \
         "$ROOT/tests/smoke.sh" \

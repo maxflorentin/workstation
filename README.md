@@ -54,7 +54,7 @@ Safe to run multiple times.
 | `workstation` | Local doctor/smoke/lint/bootstrap entrypoint |
 | `work` | Manage client workspaces on the Linux workstation |
 | `envy-*` | Age-encrypted secret management |
-| `brew-sync` | Auto-dump Brewfile and commit changes |
+| `brew-sync` | Dump Homebrew state to Brewfile; commit/push only with explicit flags |
 | `gh-clone-org` | Clone all repos from a GitHub org |
 
 ## Validation
