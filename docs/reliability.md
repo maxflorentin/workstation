@@ -48,15 +48,49 @@ Optional target check:
 WORK_BACKUP_TARGET=/path/to/backup-root work backup-doctor
 ```
 
+## Config Backup Strategy
+
+Current direction: back up **configuration only**, not client data.
+
+Use a private repository with encrypted files for small restore-critical config:
+
+```text
+private-config-backup/
+  README.restore.md
+  clients/
+    <client>/
+      clientrc.age
+      dns-filtering.age
+      wazuh-scope.age
+      tailscale-notes.age
+      compliance-latest.txt
+  workstation/
+    ssh-authorized-keys.age
+    systemd-units.age
+    restore-notes.age
+```
+
+Rules:
+
+- encrypt files before committing them;
+- do not commit plaintext client config;
+- do not store encryption keys in the same repo;
+- keep this public/sanitized repo free of client names and real infrastructure
+  values;
+- prefer client-owned private repos when ownership/compliance requires it.
+
+`age` is the preferred encryption tool because the repo already uses it through
+Envy. Restic/SSD data backups are a separate spike and are not part of this
+phase.
+
 ## What Needs Backup
 
-Back up these categories. Do not commit their contents to this repo.
+For the current config-only phase, back up restore-critical config. Do not
+commit contents to this repo.
 
 | Category | Examples |
 |----------|----------|
-| Admin home | `/home/max`, except caches/build artifacts |
-| Client homes | `/home/<client>` or encrypted backing stores |
-| Encrypted homes | `/home/.ecryptfs/<client>` |
+| Client shell config | `/home/<client>/.clientrc` |
 | ecryptfs config | `/etc/ecryptfs`, root-only |
 | SSH auth | `/etc/ssh/authorized_keys`, selected SSH config |
 | Service config | selected `/etc/systemd/system/*.service` |
@@ -64,8 +98,11 @@ Back up these categories. Do not commit their contents to this repo.
 | Compliance config | selected endpoint-agent config, scoped per client |
 | Dotfiles repo | `~/.dotfiles` or Git remote |
 
+Do not back up client data in this phase. If data backups are needed later,
+evaluate Restic/Borg/SSD/offsite separately.
+
 Tailscale machine state can often be re-authenticated, but secondary client
-daemon units and wrapper scripts should be recoverable.
+daemon units and wrapper scripts should be recoverable as config.
 
 ## Restore Runbook
 
@@ -75,8 +112,8 @@ High-level restore flow:
 2. Restore SSH access for `max`.
 3. Clone this repo and run `./install`.
 4. Run `workstation bootstrap` if the base packages are missing.
-5. Restore client users with matching names and homes.
-6. Restore encrypted homes and required root-only ecryptfs config.
+5. Restore client users with matching names.
+6. Restore selected config from the encrypted private config backup repo.
 7. Restore selected systemd units and SSH authorized keys.
 8. Re-authenticate Tailscale if needed.
 9. Run `workstation doctor`, `work doctor`, and `work backup-doctor`.

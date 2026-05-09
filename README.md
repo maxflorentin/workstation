@@ -74,3 +74,4 @@ work vpn-doctor [client]       # personal + secondary Tailscale checks
 - [Envy](docs/envy.md) - Encrypted secrets manager
 - [Sanitization](docs/sanitization.md) - rules for keeping private names and infrastructure out of git
 - [Reliability](docs/reliability.md) - health, backup, and recovery runbooks
+- [Spikes](docs/spikes.md) - deferred ideas and open questions
