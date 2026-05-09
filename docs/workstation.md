@@ -59,6 +59,32 @@ only for clients that explicitly require the compliance profile. It checks the
 endpoint agent, Wazuh syscheck scope when readable, DNS filtering, antivirus,
 and encryption.
 
+## Browser Companion
+
+`work browse <client>` starts a local SOCKS proxy to the workstation and opens
+an isolated Chrome profile for that client.
+
+For one-off sessions:
+
+```bash
+work connect --browse <client>
+```
+
+For a shell/profile default:
+
+```bash
+WORK_CONNECT_BROWSE=1 work connect <client>
+```
+
+Plain `work connect <client>` intentionally does not open a browser.
+
+Useful companion commands:
+
+```bash
+work browse --status <client>
+work browse-stop <client>
+```
+
 For DNS filtering, the doctor accepts either a `systemd-resolved`
 NextDNS-over-TLS configuration or a `dnsmasq` NextDNS configuration. Real
 profile IDs belong only in host-local config files and must not be committed.

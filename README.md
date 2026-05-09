@@ -66,6 +66,7 @@ workstation lint               # shellcheck, whitespace, sanitization checks
 workstation doctor             # local host/repo validation
 work doctor [client]           # remote workstation/client health checks
 work vpn-doctor [client]       # personal + secondary Tailscale checks
+work connect --browse <client> # tmux workspace + isolated Chrome profile
 ```
 
 ## Docs
