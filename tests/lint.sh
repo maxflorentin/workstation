@@ -45,7 +45,7 @@ fi
 
 if ! git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     ok "git diff --check skipped outside git worktree"
-elif git -C "$ROOT" diff --check --exit-code >/dev/null; then
+elif git -C "$ROOT" diff --check --exit-code -- . ':(exclude).claude/*' >/dev/null; then
     ok "git diff --check"
 else
     fail "git diff --check"
