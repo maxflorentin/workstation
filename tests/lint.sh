@@ -22,7 +22,6 @@ else
         "$ROOT/install-corporate" \
         "$ROOT/linux/bootstrap.sh" \
         "$ROOT/linux/ecryptfs-auto-mount" \
-        "$ROOT/linux/migrate.sh" \
         "$ROOT/linux/tailscale-client-setup.sh" \
         "$ROOT/linux/tmux-layout" \
         "$ROOT/linux/work" \
