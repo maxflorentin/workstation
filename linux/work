@@ -660,6 +660,12 @@ cmd_config_backup() {
         exit 1
     fi
 
+    if [ "$(id -u)" -ne 0 ]; then
+        _fail "config-backup requires sudo to read client homes and root-owned config"
+        echo "     sudo ~/.local/bin/work config-backup $client '$dest' '<age-recipient>'"
+        exit 1
+    fi
+
     if ! command -v age >/dev/null 2>&1; then
         _fail "missing command: age"
         echo ""
@@ -758,7 +764,7 @@ cmd_config_backup() {
 set -e
 found=0
 for file in /etc/dnsmasq.conf /etc/dnsmasq.d/*.conf /etc/systemd/resolved.conf; do
-    [ -r "$file" ] || continue
+    [ -f "$file" ] && [ -r "$file" ] || continue
     found=1
     printf "\n### %s\n" "$file"
     sed -n "1,220p" "$file"
@@ -775,8 +781,8 @@ done
         bash -lc '
 set -e
 found=0
-for file in /etc/ssh/authorized_keys /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf; do
-    [ -r "$file" ] || continue
+for file in /etc/ssh/authorized_keys/* /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf; do
+    [ -f "$file" ] && [ -r "$file" ] || continue
     found=1
     printf "\n### %s\n" "$file"
     sed -n "1,220p" "$file"
@@ -789,7 +795,7 @@ done
 set -e
 found=0
 for file in /etc/systemd/system/tailscaled-*.service; do
-    [ -r "$file" ] || continue
+    [ -f "$file" ] && [ -r "$file" ] || continue
     found=1
     printf "\n### %s\n" "$file"
     sed -n "1,220p" "$file"
