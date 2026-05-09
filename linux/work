@@ -144,19 +144,24 @@ cmd_connect() {
         layout_cmd="$layout_cmd $q_project"
     fi
     remote_cmd="
+        tracker_dir=\"\$HOME/.local/share/work-tracker\"
+        tracker_log=\"\$tracker_dir/log.tsv\"
+        mkdir -p \"\$tracker_dir\"
+        [ -f \"\$tracker_log\" ] || printf 'timestamp\tevent\tclient\tproject\tsource\n' > \"\$tracker_log\"
+        printf '%s\tstart\t%s\t%s\t%s\n' \"\$(date +%s)\" $q_client $q_project $q_source >> \"\$tracker_log\"
+
         if [ ! -x \"\$HOME/.local/bin/work-tracker\" ] && [ -x \"\$HOME/.dotfiles/install\" ]; then
             (cd \"\$HOME/.dotfiles\" && ./install >/dev/null 2>&1) || true
         fi
         if [ -x \"\$HOME/.local/bin/work-tracker\" ]; then
-            \"\$HOME/.local/bin/work-tracker\" start $q_client $q_project $q_source || true
             WORK_TRACKER_SOURCE=$q_source \"\$HOME/.local/bin/work-tracker\" pulse || true
         fi
         $layout_cmd
         rc=\$?
         if [ -x \"\$HOME/.local/bin/work-tracker\" ]; then
             WORK_TRACKER_SOURCE=$q_source \"\$HOME/.local/bin/work-tracker\" pulse || true
-            \"\$HOME/.local/bin/work-tracker\" stop $q_client $q_project $q_source || true
         fi
+        printf '%s\tstop\t%s\t%s\t%s\n' \"\$(date +%s)\" $q_client $q_project $q_source >> \"\$tracker_log\"
         exit \$rc
     "
 
