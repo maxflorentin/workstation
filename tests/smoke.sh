@@ -19,6 +19,18 @@ check_bash() {
     fi
 }
 
+check_output_contains() {
+    local name="$1"
+    local output="$2"
+    local expected="$3"
+
+    if [[ "$output" == *"$expected"* ]]; then
+        ok "$name"
+    else
+        fail "$name"
+    fi
+}
+
 echo "workstation smoke"
 echo "  root: $ROOT"
 echo ""
@@ -42,11 +54,21 @@ else
     fail "workstation help"
 fi
 
-if "$ROOT/linux/work" >/dev/null; then
+work_help="$("$ROOT/linux/work")"
+if [ -n "$work_help" ]; then
     ok "work help"
 else
     fail "work help"
 fi
+check_output_contains "work help documents connect browse flag" "$work_help" "work connect [--browse]"
+check_output_contains "work help documents browse status flag" "$work_help" "work browse [--status] <client>"
+check_output_contains "work help documents connect browse env" "$work_help" "WORK_CONNECT_BROWSE"
+
+connect_usage="$("$ROOT/linux/work" connect --browse 2>&1)"
+check_output_contains "work connect --browse requires client" "$connect_usage" "Usage: work connect [--browse] <client> [project]"
+
+browse_usage="$("$ROOT/linux/work" browse --status 2>&1)"
+check_output_contains "work browse --status requires client" "$browse_usage" "Usage: work browse --status <client>"
 
 if "$ROOT/scripts/work-tracker" >/dev/null; then
     ok "work-tracker help"
