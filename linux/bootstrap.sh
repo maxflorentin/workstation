@@ -10,8 +10,9 @@ echo "=== Linux Dev Server Bootstrap ==="
 echo ""
 
 ARCH="$(uname -m)"
+DEFAULT_DOTFILES_REPO="https://github.com/maxflorentin/workstation.git"
 DOTFILES_DIR="$HOME/.dotfiles"
-DOTFILES_REPO="https://github.com/maxflorentin/dotfiles-mbairm4.git"
+DOTFILES_REPO="${WORKSTATION_DOTFILES_REPO:-${WORK_DOTFILES_REPO:-$DEFAULT_DOTFILES_REPO}}"
 
 # --- Locale ---
 echo "[1/10] Configuring locale..."

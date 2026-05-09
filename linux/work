@@ -11,9 +11,10 @@
 
 set -e
 
+DEFAULT_DOTFILES_REPO="https://github.com/maxflorentin/workstation.git"
 PI_HOST="${WORKSTATION_HOST:-${WORK_PI_HOST:-workstation}}"
 PI_USER="${WORKSTATION_USER:-${WORK_PI_USER:-max}}"
-DOTFILES_REPO="${WORKSTATION_DOTFILES_REPO:-${WORK_DOTFILES_REPO:-https://github.com/maxflorentin/dotfiles-mbairm4.git}}"
+DOTFILES_REPO="${WORKSTATION_DOTFILES_REPO:-${WORK_DOTFILES_REPO:-$DEFAULT_DOTFILES_REPO}}"
 
 _is_local_workstation() {
     [ "$(uname -s)" = "Linux" ] || return 1

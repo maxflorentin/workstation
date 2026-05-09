@@ -86,6 +86,28 @@ Preferred environment variables:
 Legacy names still work while the repo migrates:
 `WORK_PI_HOST`, `WORK_PI_USER`, `WORK_DOTFILES_REPO`.
 
+## Repository Identity
+
+The repo may keep the historical local path `~/.dotfiles` while the public
+GitHub repo name evolves. Treat `~/.dotfiles` as an install location, not as the
+product name.
+
+Canonical repo name:
+
+```text
+git@github.com:maxflorentin/workstation.git
+https://github.com/maxflorentin/workstation.git
+```
+
+When renaming the GitHub repo, keep the default repo URL aligned in:
+
+- `linux/work`
+- `linux/bootstrap.sh`
+
+Existing clones can continue to work through GitHub redirects, but new client
+users should clone from the canonical repo URL through
+`WORKSTATION_DOTFILES_REPO`.
+
 ## VPN/Tailscale Model
 
 The personal Tailscale daemon is the control plane for reaching the workstation.

@@ -10,7 +10,7 @@ workspaces reached through SSH, tmux, and Tailscale.
 ## Quick start
 
 ```bash
-git clone git@github.com:maxflorentin/dotfiles-mbairm4.git ~/.dotfiles
+git clone git@github.com:maxflorentin/workstation.git ~/.dotfiles
 cd ~/.dotfiles
 ./install
 workstation doctor

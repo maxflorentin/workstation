@@ -40,6 +40,13 @@ If the branch is not pushed yet, push it from the Mac first:
 git push -u origin workstation-foundation
 ```
 
+If the GitHub repo has been renamed, set the canonical clone URL before creating
+new client users:
+
+```bash
+export WORKSTATION_DOTFILES_REPO=https://github.com/maxflorentin/workstation.git
+```
+
 ## Bring Packages In Line
 
 ```bash

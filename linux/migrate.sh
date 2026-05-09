@@ -123,7 +123,7 @@ else
         bash "$DOTFILES_DIR/linux/bootstrap.sh"
     else
         echo "  cloning and bootstrapping..."
-        bash <(curl -sL https://raw.githubusercontent.com/maxflorentin/dotfiles-mbairm4/main/linux/bootstrap.sh)
+        bash <(curl -sL https://raw.githubusercontent.com/maxflorentin/workstation/main/linux/bootstrap.sh)
     fi
 fi
 echo ""
