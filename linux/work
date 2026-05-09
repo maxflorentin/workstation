@@ -297,7 +297,11 @@ cmd_tailscale_doctor() {
         _ok "tailscale command available"
         if tailscale status >/dev/null 2>&1; then
             _ok "personal tailscale status responds"
-            tailscale ip -4 >/dev/null 2>&1 && _ok "personal tailscale has IPv4" || _warn "personal tailscale has no IPv4"
+            if tailscale ip -4 >/dev/null 2>&1; then
+                _ok "personal tailscale has IPv4"
+            else
+                _warn "personal tailscale has no IPv4"
+            fi
         else
             _warn "tailscale installed but status failed locally"
         fi
@@ -315,16 +319,28 @@ cmd_tailscale_doctor() {
         shell_output=$(_ssh_data "zsh -lic 'true' 2>&1" || true)
         if [ -n "$shell_output" ]; then
             _warn "interactive zsh emits output during startup"
-            echo "$shell_output" | sed 's/^/     /'
+            printf '%s\n' "${shell_output//$'\n'/$'\n'     }" | sed '1s/^/     /'
         else
             _ok "interactive zsh starts cleanly"
         fi
 
         if _ssh_quiet "command -v tailscale >/dev/null"; then
             _ok "tailscale command available"
-            _ssh_quiet "tailscale status >/dev/null" && _ok "personal tailscale status responds" || _fail "personal tailscale status failed"
-            _ssh_quiet "tailscale ip -4 >/dev/null" && _ok "personal tailscale has IPv4" || _warn "personal tailscale has no IPv4"
-            _ssh_quiet "systemctl is-active --quiet tailscaled" && _ok "tailscaled service active" || _warn "tailscaled service not active or systemctl unavailable"
+            if _ssh_quiet "tailscale status >/dev/null"; then
+                _ok "personal tailscale status responds"
+            else
+                _fail "personal tailscale status failed"
+            fi
+            if _ssh_quiet "tailscale ip -4 >/dev/null"; then
+                _ok "personal tailscale has IPv4"
+            else
+                _warn "personal tailscale has no IPv4"
+            fi
+            if _ssh_quiet "systemctl is-active --quiet tailscaled"; then
+                _ok "tailscaled service active"
+            else
+                _warn "tailscaled service not active or systemctl unavailable"
+            fi
         else
             _fail "tailscale command missing on workstation"
         fi
@@ -344,11 +360,31 @@ cmd_tailscale_doctor() {
             _ok "client user exists"
         fi
 
-        _ssh_quiet "test -x '$wrapper'" && _ok "wrapper exists: $wrapper" || _fail "wrapper missing: $wrapper"
-        _ssh_quiet "test -S '$socket'" && _ok "socket exists: $socket" || _warn "socket missing: $socket"
-        _ssh_quiet "systemctl is-active --quiet '$service'" && _ok "service active: $service" || _warn "service not active: $service"
-        _ssh_quiet "grep -q -- '--tun=userspace-networking' '$unit'" && _ok "secondary daemon uses userspace networking" || _fail "secondary daemon is not configured for userspace networking"
-        _ssh_quiet "grep -q -- '--accept-routes is blocked' '$wrapper'" && _ok "wrapper blocks --accept-routes" || _fail "wrapper does not appear to block --accept-routes"
+        if _ssh_quiet "test -x '$wrapper'"; then
+            _ok "wrapper exists: $wrapper"
+        else
+            _fail "wrapper missing: $wrapper"
+        fi
+        if _ssh_quiet "test -S '$socket'"; then
+            _ok "socket exists: $socket"
+        else
+            _warn "socket missing: $socket"
+        fi
+        if _ssh_quiet "systemctl is-active --quiet '$service'"; then
+            _ok "service active: $service"
+        else
+            _warn "service not active: $service"
+        fi
+        if _ssh_quiet "grep -q -- '--tun=userspace-networking' '$unit'"; then
+            _ok "secondary daemon uses userspace networking"
+        else
+            _fail "secondary daemon is not configured for userspace networking"
+        fi
+        if _ssh_quiet "grep -q -- '--accept-routes is blocked' '$wrapper'"; then
+            _ok "wrapper blocks --accept-routes"
+        else
+            _fail "wrapper does not appear to block --accept-routes"
+        fi
         if _ssh_as_quiet "$client" "tailscale-$client status >/dev/null 2>&1"; then
             _ok "secondary tailscale status responds as client"
         elif _ssh_quiet "sudo -n tailscale --socket='$socket' status >/dev/null 2>&1"; then
