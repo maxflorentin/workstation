@@ -87,6 +87,16 @@ _truthy() {
     esac
 }
 
+_sh_quote() {
+    printf '%q' "$1"
+}
+
+_tracker_local_event() {
+    local event="$1" client="$2" project="$3"
+    command -v work-tracker >/dev/null 2>&1 || return 0
+    work-tracker "$event" "$client" "$project" "${WORK_TRACKER_SOURCE:-mac}" 2>/dev/null || true
+}
+
 # --- connect ---
 cmd_connect() {
     local client="${1:-}"
@@ -123,13 +133,41 @@ cmd_connect() {
         cmd_browse "$client"
     fi
 
-    work-tracker start "$client" "$project" "mac" 2>/dev/null || true
+    _tracker_local_event start "$client" "$project"
+
+    local q_client q_project q_source layout_cmd remote_cmd
+    q_client="$(_sh_quote "$client")"
+    q_project="$(_sh_quote "$project")"
+    q_source="$(_sh_quote "${WORK_TRACKER_SOURCE:-work-connect}")"
+    layout_cmd="/home/$client/.dotfiles/linux/tmux-layout"
     if [ -n "$project" ]; then
-        _ssh_as_tty "$client" "/home/$client/.dotfiles/linux/tmux-layout '$project'"
-    else
-        _ssh_as_tty "$client" "/home/$client/.dotfiles/linux/tmux-layout"
+        layout_cmd="$layout_cmd $q_project"
     fi
-    work-tracker stop "$client" "$project" "mac" 2>/dev/null || true
+    remote_cmd="
+        if [ ! -x \"\$HOME/.local/bin/work-tracker\" ] && [ -x \"\$HOME/.dotfiles/install\" ]; then
+            (cd \"\$HOME/.dotfiles\" && ./install >/dev/null 2>&1) || true
+        fi
+        if [ -x \"\$HOME/.local/bin/work-tracker\" ]; then
+            \"\$HOME/.local/bin/work-tracker\" start $q_client $q_project $q_source || true
+            WORK_TRACKER_SOURCE=$q_source \"\$HOME/.local/bin/work-tracker\" pulse || true
+        fi
+        $layout_cmd
+        rc=\$?
+        if [ -x \"\$HOME/.local/bin/work-tracker\" ]; then
+            WORK_TRACKER_SOURCE=$q_source \"\$HOME/.local/bin/work-tracker\" pulse || true
+            \"\$HOME/.local/bin/work-tracker\" stop $q_client $q_project $q_source || true
+        fi
+        exit \$rc
+    "
+
+    local rc
+    set +e
+    _ssh_as_tty "$client" "$remote_cmd"
+    rc=$?
+    set -e
+
+    _tracker_local_event stop "$client" "$project"
+    return "$rc"
 }
 
 # --- user-create ---
@@ -1216,6 +1254,21 @@ REMOTE
                 else
                     _warn "client work-tracker missing"
                 fi
+                if _ssh_quiet "sudo -n -u '$client' crontab -l 2>/dev/null | grep -qF 'work-tracker pulse'"; then
+                    _ok "client work-tracker pulse cron installed"
+                else
+                    _warn "client work-tracker pulse cron missing"
+                fi
+                if _ssh_quiet "sudo -n -u '$client' crontab -l 2>/dev/null | grep -qF 'work-tracker monthly-save'"; then
+                    _ok "client work-tracker monthly-save cron installed"
+                else
+                    _warn "client work-tracker monthly-save cron missing"
+                fi
+                if _ssh_quiet "sudo -n -u '$client' /home/$client/.local/bin/work-tracker status >/dev/null"; then
+                    _ok "client work-tracker status runs"
+                else
+                    _warn "client work-tracker status failed"
+                fi
             else
                 echo "info skipping client dotfile checks because passwordless sudo is unavailable"
             fi
@@ -1670,8 +1723,8 @@ cmd_help() {
     echo "  work browse-stop [client]         Stop SOCKS proxy"
     echo "  work agvty <client>               Antigravity via X11 forwarding"
     echo "  work agvty-stop [client]          Stop Antigravity session"
-    echo "  work vpn-up <client>              Start client VPN"
-    echo "  work vpn-down <client>            Stop client VPN"
+    echo "  work vpn-up <client>              Start legacy WireGuard VPN"
+    echo "  work vpn-down <client>            Stop legacy WireGuard VPN"
     echo "  work tailscale-setup <client>     Install secondary Tailscale for client"
     echo "  work tailscale-doctor [client]    Check personal + secondary Tailscale"
     echo "  work vpn-doctor [client]          Alias for tailscale-doctor"

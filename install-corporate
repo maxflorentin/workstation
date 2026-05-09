@@ -17,7 +17,7 @@
 #   - No Slack, Chrome, Obsidian (your company installs those)
 #
 # Usage:
-#   git clone git@github.com:maxflorentin/dotfiles-mbairm4.git ~/.dotfiles
+#   git clone git@github.com:maxflorentin/workstation.git ~/.dotfiles
 #   ~/.dotfiles/install-corporate
 
 set -e

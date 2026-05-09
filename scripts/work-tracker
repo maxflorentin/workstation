@@ -22,31 +22,32 @@ _log_event() {
     printf '%s\t%s\t%s\t%s\t%s\n' "$(date +%s)" "$1" "$2" "$3" "$4" >> "$LOG_FILE"
 }
 
-_last_event() {
-    awk -F'\t' -v c="$1" -v p="$2" '$3==c && $4==p {e=$2} END{print e}' "$LOG_FILE"
+_last_connection_event() {
+    awk -F'\t' -v c="$1" -v p="$2" '$3==c && $4==p && ($2=="start" || $2=="stop") {e=$2} END{print e}' "$LOG_FILE"
 }
 
 cmd_start() {
     local client="$1" project="${2:-}" source="${3:-$(hostname -s)}"
     [ -z "$client" ] && { echo "Usage: work-tracker start <client> [project] [source]"; exit 1; }
-    [ "$(_last_event "$client" "$project")" = "start" ] && return 0
+    [ "$(_last_connection_event "$client" "$project")" = "start" ] && return 0
     _log_event "start" "$client" "$project" "$source"
 }
 
 cmd_stop() {
     local client="$1" project="${2:-}" source="${3:-$(hostname -s)}"
     [ -z "$client" ] && { echo "Usage: work-tracker stop <client> [project] [source]"; exit 1; }
-    [ "$(_last_event "$client" "$project")" != "start" ] && return 0
+    [ "$(_last_connection_event "$client" "$project")" != "start" ] && return 0
     _log_event "stop" "$client" "$project" "$source"
 }
 
-# pulse: called by cron every 5 min on Pi (per client user)
+# pulse: called by cron every 5 min on the workstation (per client user)
 # Client is derived from $USER. Session name becomes the project.
 cmd_pulse() {
     command -v tmux >/dev/null 2>&1 || return 0
     local now
     now=$(date +%s)
     local client="${USER:-$(whoami)}"
+    local source="${WORK_TRACKER_SOURCE:-$(hostname -s)}"
 
     tmux list-sessions -F '#{session_name} #{session_activity}' 2>/dev/null | while read -r session last_activity; do
         # Skip generic sessions
@@ -58,7 +59,7 @@ cmd_pulse() {
 
         local idle=$((now - last_activity))
         if [ "$idle" -lt "$IDLE_THRESHOLD" ]; then
-            _log_event "tick" "$client" "$project" "pi"
+            _log_event "tick" "$client" "$project" "$source"
         fi
     done
 }
@@ -154,7 +155,7 @@ cmd_report() {
             # Remove from connected so we can print connect-only clients after
             delete connected[k]
         }
-        # Clients with connection time but no ticks (Mac-only, no Pi pulse)
+        # Clients with connection time but no ticks.
         for (k in connected) {
             conn_h = connected[k] / 3600
             grand_conn += conn_h

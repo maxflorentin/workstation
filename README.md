@@ -73,6 +73,7 @@ work connect --browse <client> # tmux workspace + isolated Chrome profile
 
 - [Workstation](docs/workstation.md) - headless Linux workstation architecture
 - [Workstation Migration](docs/workstation-migration.md) - applying this foundation to the Dell
+- [Development Workflow](docs/dev-workflow.md) - Mac, workstation, browser, Docker, and mobile flow
 - [Secondary Tailscale](docs/tailscale-client.md) - client tailnet isolation
 - [Envy](docs/envy.md) - Encrypted secrets manager
 - [Sanitization](docs/sanitization.md) - rules for keeping private names and infrastructure out of git

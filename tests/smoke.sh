@@ -98,6 +98,17 @@ else
 fi
 rm -f "$tmp_log"
 
+tmp_data="$(mktemp -d "${TMPDIR:-/tmp}/work-tracker-data.XXXXXX")"
+XDG_DATA_HOME="$tmp_data" "$ROOT/scripts/work-tracker" start acme app mac
+printf '%s\ttick\tacme\tapp\tworkstation\n' "$(date +%s)" >> "$tmp_data/work-tracker/log.tsv"
+XDG_DATA_HOME="$tmp_data" "$ROOT/scripts/work-tracker" stop acme app mac
+if grep -q $'\tstop\tacme\tapp\tmac$' "$tmp_data/work-tracker/log.tsv"; then
+    ok "work-tracker stop after tick"
+else
+    fail "work-tracker stop after tick"
+fi
+rm -rf "$tmp_data"
+
 echo ""
 if [ "$FAIL" -gt 0 ]; then
     echo "smoke failed: $FAIL failure(s)"

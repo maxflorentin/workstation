@@ -65,7 +65,7 @@ if [ "$OS" = "Darwin" ]; then
     # Mackup
     ln -sf "$DOTFILES/macos/mackup.cfg" "$HOME/.mackup.cfg"
 
-    # work CLI (manage Pi from Mac)
+    # work CLI (manage workstation from Mac)
     ln -sf "$DOTFILES/linux/work" "$HOME/.local/bin/work"
 
     echo "  macos: mackup, work cli"
