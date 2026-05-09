@@ -520,6 +520,107 @@ systemctl start clamav-daemon
 REMOTE
 }
 
+# --- backup-doctor ---
+# Non-destructive backup/recovery readiness checks. This does not copy data.
+cmd_backup_doctor() {
+    local failures=0
+    local warnings=0
+    local admin_sudo=0
+
+    _ok() { echo "ok   $*"; }
+    _warn() { echo "warn $*"; warnings=$((warnings + 1)); }
+    _fail() { echo "fail $*"; failures=$((failures + 1)); }
+
+    echo "backup doctor"
+    echo "  workstation: $PI_USER@$PI_HOST"
+    echo ""
+
+    echo "== Reachability =="
+    if ! _ssh_quiet "echo ok" >/dev/null; then
+        _fail "ssh unreachable at $PI_HOST"
+        echo ""
+        echo "backup doctor failed: $failures failure(s), $warnings warning(s)"
+        exit 1
+    fi
+    _ok "ssh reachable"
+
+    if _ssh_quiet "sudo -n true"; then
+        _ok "passwordless sudo available for privileged backup checks"
+        admin_sudo=1
+    else
+        echo "info passwordless sudo unavailable; privileged checks will be limited"
+        echo "info run on workstation with sudo for full verification: sudo ~/.local/bin/work backup-doctor"
+    fi
+
+    echo ""
+    echo "== Core Data =="
+    local admin_home
+    admin_home=$(_ssh_quiet "getent passwd '$PI_USER' | cut -d: -f6" || true)
+    if [ -z "$admin_home" ]; then
+        _fail "could not resolve admin home for $PI_USER"
+        admin_home="/home/$PI_USER"
+    fi
+    _ssh_quiet "test -d '$admin_home/.dotfiles' && test -d '$admin_home/.dotfiles/.git'" && _ok "admin dotfiles repo exists" || _fail "admin dotfiles repo missing"
+    _ssh_quiet "test -d '$admin_home/.ssh'" && _ok "admin ~/.ssh exists" || _warn "admin ~/.ssh missing"
+    _ssh_quiet "test -d '$admin_home/.envy'" && _ok "admin ~/.envy exists" || _warn "admin ~/.envy missing"
+
+    echo ""
+    echo "== Client Homes =="
+    local clients
+    clients=$(_list_clients || true)
+    if [ -z "$clients" ]; then
+        _warn "no client users found"
+    else
+        while IFS= read -r client; do
+            [ -z "$client" ] && continue
+            local home_mode home_fs
+            home_mode=$(_ssh_quiet "stat -c %a /home/$client 2>/dev/null" || true)
+            home_fs=$(_ssh_quiet "findmnt -no FSTYPE /home/$client 2>/dev/null" || true)
+            [ "$home_mode" = "700" ] && _ok "$client home mode 700" || _warn "$client home mode ${home_mode:-unknown}, expected 700"
+            if [ "$home_fs" = "ecryptfs" ]; then
+                _ok "$client home mounted as ecryptfs"
+            elif [ -n "$home_fs" ]; then
+                echo "info $client home fstype $home_fs"
+            else
+                echo "info $client home is not a separate mount"
+            fi
+        done <<< "$clients"
+    fi
+
+    echo ""
+    echo "== Privileged State =="
+    if [ "$admin_sudo" -eq 1 ]; then
+        _ssh_quiet "sudo -n test -d /etc/ssh/authorized_keys" && _ok "/etc/ssh/authorized_keys exists" || _warn "/etc/ssh/authorized_keys missing"
+        _ssh_quiet "sudo -n test -d /etc/ecryptfs" && _ok "/etc/ecryptfs exists" || _warn "/etc/ecryptfs missing"
+        _ssh_quiet "sudo -n find /home/.ecryptfs -mindepth 1 -maxdepth 1 -type d 2>/dev/null | grep -q ." && _ok "/home/.ecryptfs has encrypted homes" || _warn "/home/.ecryptfs missing or empty"
+        _ssh_quiet "sudo -n find /etc/systemd/system -maxdepth 1 -name 'tailscaled-*.service' 2>/dev/null | grep -q ." && _ok "secondary Tailscale systemd units present" || _warn "no secondary Tailscale units found"
+        _ssh_quiet "sudo -n find /usr/local/bin -maxdepth 1 -name 'tailscale-*' 2>/dev/null | grep -q ." && _ok "secondary Tailscale wrappers present" || _warn "no secondary Tailscale wrappers found"
+        _ssh_quiet "sudo -n test -d /var/ossec" && _ok "Wazuh state present" || _warn "Wazuh state missing"
+    else
+        echo "info skipped privileged state checks"
+    fi
+
+    echo ""
+    echo "== Backup Target =="
+    if [ -n "${WORK_BACKUP_TARGET:-}" ]; then
+        if _ssh_quiet "test -d '$WORK_BACKUP_TARGET'"; then
+            _ok "WORK_BACKUP_TARGET exists"
+        else
+            _warn "WORK_BACKUP_TARGET not found on workstation"
+        fi
+    else
+        _warn "WORK_BACKUP_TARGET not set"
+    fi
+
+    echo ""
+    if [ "$failures" -gt 0 ]; then
+        echo "backup doctor failed: $failures failure(s), $warnings warning(s)"
+        exit 1
+    fi
+
+    echo "backup doctor passed: $warnings warning(s)"
+}
+
 # --- doctor ---
 # Non-destructive workstation checks: SSH, shell startup, core commands,
 # services, resources, dotfiles install, and optional client user hygiene.
@@ -1063,6 +1164,7 @@ cmd_help() {
     echo "  work doctor [client]              General workstation/client health checks"
     echo "  work compliance-doctor <client>   Check optional per-client compliance profile"
     echo "  work clamav-setup                 Install and initialize ClamAV"
+    echo "  work backup-doctor                Check backup/recovery readiness"
     echo "  work connect [client] [project]   SSH as client + tmux (fuzzy project match)"
     echo "  work user-create <client>         Create a dedicated Linux user for a client"
     echo "  work status                       fastfetch-style workstation status"
@@ -1099,6 +1201,7 @@ case "${1:-}" in
     doctor)         shift; cmd_doctor "$@" ;;
     compliance-doctor) shift; cmd_compliance_doctor "$@" ;;
     clamav-setup)   shift; cmd_clamav_setup "$@" ;;
+    backup-doctor)  shift; cmd_backup_doctor "$@" ;;
     status)         cmd_status ;;
     health)         cmd_health ;;
     watch)          shift; cmd_watch "$@" ;;
