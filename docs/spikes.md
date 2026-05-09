@@ -25,11 +25,11 @@ are explicit.
 
 ## Client Onboarding Skill / Agent
 
-Status: backlog.
+Status: partially implemented.
 
-Create a repo-local skill or scripted assistant workflow for onboarding a new
-client without leaking client names, brands, credentials, or network details
-into git.
+`work onboard <client>` now prints a sanitized onboarding checklist without
+creating or modifying users. A richer repo-local skill or assistant workflow is
+still backlog.
 
 The workflow should guide or automate:
 
@@ -44,10 +44,9 @@ The workflow should guide or automate:
 - final validation with `work doctor <client>`, `work vpn-doctor <client>`, and
   relevant compliance checks.
 
-Open questions:
+Remaining open questions:
 
-- whether this should be a Codex/Claude skill, a `work onboard <client>` command,
-  or both;
+- whether this should also become a Codex/Claude skill;
 - how much should be automated versus checklist-driven;
 - where non-committable client notes should live;
 - how to produce a sanitized onboarding summary for future audits.

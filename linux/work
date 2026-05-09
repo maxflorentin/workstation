@@ -426,6 +426,85 @@ REMOTE
     echo "clientrc doctor passed: $warnings warning(s)"
 }
 
+# --- onboard ---
+# Prints a sanitized onboarding checklist for a client user.
+cmd_onboard() {
+    local client="${1:-}"
+
+    if [ -z "$client" ]; then
+        echo "Usage: work onboard <client>"
+        echo "Prints a sanitized onboarding checklist. It does not create or modify users."
+        exit 1
+    fi
+
+    _validate_client_name "$client"
+
+    cat <<EOF
+client onboarding checklist
+  workstation: $PI_USER@$PI_HOST
+  client:      $client
+
+== Create / baseline ==
+[ ] Create the Linux user if missing:
+    work user-create $client
+
+[ ] Install or refresh the client-local profile:
+    work clientrc-init $client
+
+[ ] Validate the client-local profile without printing values:
+    work clientrc-doctor $client
+
+[ ] Validate workstation and client basics:
+    work doctor $client
+
+== Access decisions ==
+[ ] Decide Docker access explicitly.
+    Default is no docker group. Use WORK_CLIENT_DOCKER=1 only when the client
+    user is intentionally trusted with privileged host access.
+
+[ ] Decide secondary Tailscale explicitly.
+    If required:
+    work tailscale-setup $client
+    work vpn-doctor $client
+
+[ ] Decide browser companion behavior.
+    One-off:
+    work connect --browse $client
+    Persistent preference belongs in /home/$client/.clientrc.
+
+== Compliance decisions ==
+[ ] If this client requires endpoint/DNS/AV/encryption compliance, configure it
+    as client-specific host-local state and validate with:
+    sudo ~/.local/bin/work compliance-doctor $client
+
+[ ] Wazuh/syscheck, when used for a client-specific profile, must include only
+    /home/$client and must not scan /home, /home/$PI_USER, /etc, /usr, /bin,
+    /sbin, or /boot.
+
+== Secrets and keys ==
+[ ] Create/use an Envy context for this client without printing secrets.
+
+[ ] Generate project/provider SSH keys inside the client home when needed:
+    work ssh-keygen $client <host>
+
+== Backup readiness ==
+[ ] Decide whether config-only backup is needed.
+    Private encrypted target only; never this sanitized repo.
+
+[ ] Check backup readiness:
+    work backup-doctor
+
+[ ] Export config-only backup from the workstation with sudo when ready:
+    sudo ~/.local/bin/work config-backup $client /path/to/private-config-backup '<age-recipient>'
+
+== Final validation ==
+[ ] work doctor $client
+[ ] work clientrc-doctor $client
+[ ] work vpn-doctor $client
+[ ] sudo ~/.local/bin/work compliance-doctor $client   # only if applicable
+EOF
+}
+
 # --- VPN ---
 cmd_vpn_up() {
     local client="$1"
@@ -1863,6 +1942,7 @@ cmd_help() {
     echo "                                     Export encrypted config-only backup"
     echo "  work connect [--browse] [client] [project]"
     echo "                                     SSH as client + tmux; optionally open browser"
+    echo "  work onboard <client>             Print sanitized client onboarding checklist"
     echo "  work user-create <client>         Create a dedicated Linux user for a client"
     echo "  work clientrc-init [--force] <client>"
     echo "                                     Install sanitized .clientrc template"
@@ -1899,6 +1979,7 @@ cmd_help() {
 
 case "${1:-}" in
     connect)        shift; cmd_connect "$@" ;;
+    onboard)        shift; cmd_onboard "$@" ;;
     user-create)    shift; cmd_user_create "$@" ;;
     clientrc-init)   shift; cmd_clientrc_init "$@" ;;
     clientrc-doctor) shift; cmd_clientrc_doctor "$@" ;;

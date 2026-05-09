@@ -61,6 +61,7 @@ else
     fail "work help"
 fi
 check_output_contains "work help documents connect browse flag" "$work_help" "work connect [--browse]"
+check_output_contains "work help documents onboard" "$work_help" "work onboard <client>"
 check_output_contains "work help documents clientrc init" "$work_help" "work clientrc-init [--force] <client>"
 check_output_contains "work help documents clientrc doctor" "$work_help" "work clientrc-doctor <client>"
 check_output_contains "work help documents browse status flag" "$work_help" "work browse [--status] <client>"
@@ -78,6 +79,14 @@ check_output_contains "work clientrc-init requires client" "$clientrc_usage" "Us
 
 clientrc_doctor_usage="$("$ROOT/linux/work" clientrc-doctor 2>&1)"
 check_output_contains "work clientrc-doctor requires client" "$clientrc_doctor_usage" "Usage: work clientrc-doctor <client>"
+
+onboard_usage="$("$ROOT/linux/work" onboard 2>&1)"
+check_output_contains "work onboard requires client" "$onboard_usage" "Usage: work onboard <client>"
+
+onboard_output="$("$ROOT/linux/work" onboard acme 2>&1)"
+check_output_contains "work onboard prints checklist" "$onboard_output" "client onboarding checklist"
+check_output_contains "work onboard includes clientrc doctor" "$onboard_output" "work clientrc-doctor acme"
+check_output_contains "work onboard includes compliance boundary" "$onboard_output" "must not scan /home"
 
 legacy_help="$("$ROOT/linux/work" legacy)"
 check_output_contains "work legacy documents vpn-up" "$legacy_help" "work vpn-up <client>"

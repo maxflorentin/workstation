@@ -67,6 +67,7 @@ result. The doctor checks metadata and expected keys without printing values.
 For generic checks:
 
 ```bash
+work onboard <client>
 workstation ci
 work doctor <client>
 work clientrc-doctor <client>
