@@ -621,6 +621,214 @@ cmd_backup_doctor() {
     echo "backup doctor passed: $warnings warning(s)"
 }
 
+# --- config-backup ---
+# Export restore-critical config to an external private repo, encrypted with age.
+# This intentionally excludes client data.
+cmd_config_backup() {
+    local client="${1:-}"
+    local dest="${2:-}"
+    shift 2 2>/dev/null || true
+    local recipient="$*"
+    local failures=0
+    local warnings=0
+
+    _ok() { echo "ok   $*"; }
+    _warn() { echo "warn $*"; warnings=$((warnings + 1)); }
+    _fail() { echo "fail $*"; failures=$((failures + 1)); }
+
+    if [ -z "$client" ] || [ -z "$dest" ] || [ -z "$recipient" ]; then
+        echo "Usage: work config-backup <client> <dest-dir> <age-recipient>"
+        echo ""
+        echo "Run this on the workstation. Use sudo for root-owned config:"
+        echo "  sudo ~/.local/bin/work config-backup <client> /path/to/private-config-backup 'age1...'"
+        echo ""
+        echo "For SSH recipients, quote the whole public key."
+        exit 1
+    fi
+    _validate_client_name "$client"
+
+    echo "config backup"
+    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  client:      $client"
+    echo "  target:      $dest"
+    echo ""
+
+    if ! _is_local_workstation; then
+        _fail "config-backup must run on the workstation so root-owned files stay local"
+        echo "     ssh $PI_USER@$PI_HOST"
+        echo "     sudo ~/.local/bin/work config-backup $client /path/to/private-config-backup '<age-recipient>'"
+        exit 1
+    fi
+
+    if ! command -v age >/dev/null 2>&1; then
+        _fail "missing command: age"
+        echo ""
+        echo "config backup failed: $failures failure(s), $warnings warning(s)"
+        exit 1
+    fi
+
+    if ! id "$client" >/dev/null 2>&1; then
+        _fail "client user does not exist"
+        echo ""
+        echo "config backup failed: $failures failure(s), $warnings warning(s)"
+        exit 1
+    fi
+
+    mkdir -p "$dest"
+    local dest_abs repo_abs client_dir workstation_dir tmp_dir generated_at
+    dest_abs="$(cd "$dest" && pwd -P)"
+    repo_abs="$(cd "$(dirname "$0")/.." && pwd -P)"
+
+    case "$dest_abs" in
+        "$repo_abs"|"$repo_abs"/*|"/home/$client"|"/home/$client"/*)
+            _fail "target must be outside this sanitized repo and outside the client home"
+            echo ""
+            echo "config backup failed: $failures failure(s), $warnings warning(s)"
+            exit 1
+            ;;
+    esac
+
+    client_dir="$dest_abs/clients/$client"
+    workstation_dir="$dest_abs/workstation"
+    mkdir -p "$client_dir" "$workstation_dir"
+    tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/work-config-backup.XXXXXX")"
+    trap 'rm -rf "$tmp_dir"' RETURN
+    generated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+    _encrypt_file() {
+        local src="$1"
+        local out="$2"
+        local label="$3"
+        local required="${4:-optional}"
+        local out_tmp="$out.tmp"
+
+        if [ -r "$src" ]; then
+            if age -r "$recipient" -o "$out_tmp" "$src"; then
+                mv "$out_tmp" "$out"
+                chmod 600 "$out"
+                _ok "$label"
+            else
+                rm -f "$out_tmp"
+                _fail "$label could not be encrypted"
+            fi
+        elif [ "$required" = "required" ]; then
+            _fail "$label unreadable: $src"
+        else
+            _warn "$label skipped: $src unreadable or missing"
+        fi
+    }
+
+    _encrypt_capture() {
+        local out="$1"
+        local label="$2"
+        local required="${3:-optional}"
+        shift 3
+        local tmp
+        local out_tmp="$out.tmp"
+        tmp="$tmp_dir/$(basename "$out").plain"
+
+        if "$@" > "$tmp" && [ -s "$tmp" ]; then
+            if age -r "$recipient" -o "$out_tmp" "$tmp"; then
+                mv "$out_tmp" "$out"
+                chmod 600 "$out"
+                _ok "$label"
+            else
+                rm -f "$out_tmp"
+                _fail "$label could not be encrypted"
+            fi
+        elif [ "$required" = "required" ]; then
+            _fail "$label could not be captured"
+        else
+            _warn "$label skipped: unavailable"
+        fi
+    }
+
+    echo "== Client Config =="
+    _encrypt_file "/home/$client/.clientrc" "$client_dir/clientrc.age" "client .clientrc" "required"
+    _encrypt_file "/usr/local/bin/tailscale-$client" "$client_dir/tailscale-wrapper.age" "secondary Tailscale wrapper"
+    _encrypt_file "/etc/systemd/system/tailscaled-$client.service" "$client_dir/tailscale-unit.age" "secondary Tailscale unit"
+
+    echo ""
+    echo "== Compliance Config =="
+    _encrypt_capture "$client_dir/wazuh-syscheck.age" "Wazuh syscheck scope" "optional" \
+        awk '/<syscheck>/,/<\/syscheck>/' /var/ossec/etc/ossec.conf
+    # shellcheck disable=SC2016
+    _encrypt_capture "$client_dir/dns-filtering.age" "DNS filtering config" "optional" \
+        bash -lc '
+set -e
+found=0
+for file in /etc/dnsmasq.conf /etc/dnsmasq.d/*.conf /etc/systemd/resolved.conf; do
+    [ -r "$file" ] || continue
+    found=1
+    printf "\n### %s\n" "$file"
+    sed -n "1,220p" "$file"
+done
+[ "$found" -eq 1 ]
+'
+    _encrypt_capture "$client_dir/compliance-latest.age" "latest compliance doctor output" "optional" \
+        "$0" compliance-doctor "$client"
+
+    echo ""
+    echo "== Workstation Config =="
+    # shellcheck disable=SC2016
+    _encrypt_capture "$workstation_dir/ssh-authorized-keys.age" "SSH authorized keys config" "optional" \
+        bash -lc '
+set -e
+found=0
+for file in /etc/ssh/authorized_keys /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf; do
+    [ -r "$file" ] || continue
+    found=1
+    printf "\n### %s\n" "$file"
+    sed -n "1,220p" "$file"
+done
+[ "$found" -eq 1 ]
+'
+    # shellcheck disable=SC2016
+    _encrypt_capture "$workstation_dir/systemd-client-units.age" "client-related systemd units" "optional" \
+        bash -lc '
+set -e
+found=0
+for file in /etc/systemd/system/tailscaled-*.service; do
+    [ -r "$file" ] || continue
+    found=1
+    printf "\n### %s\n" "$file"
+    sed -n "1,220p" "$file"
+done
+[ "$found" -eq 1 ]
+'
+
+    cat > "$dest_abs/README.restore.md" <<EOF
+# Private Config Backup
+
+Generated: $generated_at
+
+This repo stores encrypted, restore-critical configuration only.
+Do not commit plaintext client data or encryption keys here.
+
+Restore outline:
+
+1. Clone the workstation repo and run ./install.
+2. Recreate the client user: $client.
+3. Decrypt only the files needed for that restore.
+4. Restore service config, then re-authenticate external services as needed.
+5. Run: sudo ~/.local/bin/work compliance-doctor $client
+EOF
+    chmod 600 "$dest_abs/README.restore.md"
+    _ok "restore README updated"
+
+    if [ -n "${SUDO_UID:-}" ] && [ -n "${SUDO_GID:-}" ]; then
+        chown -R "$SUDO_UID:$SUDO_GID" "$dest_abs"
+    fi
+
+    echo ""
+    if [ "$failures" -gt 0 ]; then
+        echo "config backup failed: $failures failure(s), $warnings warning(s)"
+        exit 1
+    fi
+
+    echo "config backup completed: $warnings warning(s)"
+}
+
 # --- doctor ---
 # Non-destructive workstation checks: SSH, shell startup, core commands,
 # services, resources, dotfiles install, and optional client user hygiene.
@@ -1165,6 +1373,8 @@ cmd_help() {
     echo "  work compliance-doctor <client>   Check optional per-client compliance profile"
     echo "  work clamav-setup                 Install and initialize ClamAV"
     echo "  work backup-doctor                Check backup/recovery readiness"
+    echo "  work config-backup <client> <dir> <recipient>"
+    echo "                                     Export encrypted config-only backup"
     echo "  work connect [client] [project]   SSH as client + tmux (fuzzy project match)"
     echo "  work user-create <client>         Create a dedicated Linux user for a client"
     echo "  work status                       fastfetch-style workstation status"
@@ -1202,6 +1412,7 @@ case "${1:-}" in
     compliance-doctor) shift; cmd_compliance_doctor "$@" ;;
     clamav-setup)   shift; cmd_clamav_setup "$@" ;;
     backup-doctor)  shift; cmd_backup_doctor "$@" ;;
+    config-backup)  shift; cmd_config_backup "$@" ;;
     status)         cmd_status ;;
     health)         cmd_health ;;
     watch)          shift; cmd_watch "$@" ;;

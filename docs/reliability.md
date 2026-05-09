@@ -48,6 +48,32 @@ Optional target check:
 WORK_BACKUP_TARGET=/path/to/backup-root work backup-doctor
 ```
 
+## Encrypted Config Backup
+
+`work config-backup` creates an encrypted, config-only snapshot for one client.
+Run it on the workstation so root-owned config never leaves the host as
+plaintext.
+
+```bash
+sudo ~/.local/bin/work config-backup <client> /path/to/private-config-backup 'age1...'
+```
+
+For SSH recipients, quote the complete public key:
+
+```bash
+sudo ~/.local/bin/work config-backup <client> /path/to/private-config-backup 'ssh-ed25519 AAAA...'
+```
+
+The command refuses to write into this sanitized repo or into the client home.
+It writes encrypted `.age` files under `clients/<client>/` and `workstation/`,
+plus a small restore README in the private destination.
+
+Expected inputs:
+
+- `<client>` is the Linux client user.
+- `<dest-dir>` is a separate private repo or private working tree.
+- `<age-recipient>` is a public age or SSH recipient, not a private key.
+
 ## Config Backup Strategy
 
 Current direction: back up **configuration only**, not client data.
@@ -63,7 +89,7 @@ private-config-backup/
       dns-filtering.age
       wazuh-scope.age
       tailscale-notes.age
-      compliance-latest.txt
+      compliance-latest.age
   workstation/
     ssh-authorized-keys.age
     systemd-units.age
