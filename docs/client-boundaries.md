@@ -57,10 +57,12 @@ Start from:
 ```bash
 work clientrc-init <client>
 work clientrc-doctor <client>
+work client-profile <client>
 ```
 
 Then edit the file on the workstation with real values. Never commit the
 result. The doctor checks metadata and expected keys without printing values.
+The profile command prints only a sanitized decision summary.
 
 ## Validation
 
@@ -70,6 +72,7 @@ For generic checks:
 work onboard <client>
 workstation ci
 work doctor <client>
+work client-profile <client>
 work clientrc-doctor <client>
 work vpn-doctor <client>
 ```

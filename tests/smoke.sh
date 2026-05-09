@@ -64,6 +64,7 @@ check_output_contains "work help documents connect browse flag" "$work_help" "wo
 check_output_contains "work help documents onboard" "$work_help" "work onboard <client>"
 check_output_contains "work help documents clientrc init" "$work_help" "work clientrc-init [--force] <client>"
 check_output_contains "work help documents clientrc doctor" "$work_help" "work clientrc-doctor <client>"
+check_output_contains "work help documents client profile" "$work_help" "work client-profile <client>"
 check_output_contains "work help documents browse status flag" "$work_help" "work browse [--status] <client>"
 check_output_contains "work help documents connect browse env" "$work_help" "WORK_CONNECT_BROWSE"
 check_output_contains "work help documents legacy commands" "$work_help" "work legacy"
@@ -80,12 +81,16 @@ check_output_contains "work clientrc-init requires client" "$clientrc_usage" "Us
 clientrc_doctor_usage="$("$ROOT/linux/work" clientrc-doctor 2>&1)"
 check_output_contains "work clientrc-doctor requires client" "$clientrc_doctor_usage" "Usage: work clientrc-doctor <client>"
 
+client_profile_usage="$("$ROOT/linux/work" client-profile 2>&1)"
+check_output_contains "work client-profile requires client" "$client_profile_usage" "Usage: work client-profile <client>"
+
 onboard_usage="$("$ROOT/linux/work" onboard 2>&1)"
 check_output_contains "work onboard requires client" "$onboard_usage" "Usage: work onboard <client>"
 
 onboard_output="$("$ROOT/linux/work" onboard acme 2>&1)"
 check_output_contains "work onboard prints checklist" "$onboard_output" "client onboarding checklist"
 check_output_contains "work onboard includes clientrc doctor" "$onboard_output" "work clientrc-doctor acme"
+check_output_contains "work onboard includes client profile" "$onboard_output" "work client-profile acme"
 check_output_contains "work onboard includes compliance boundary" "$onboard_output" "must not scan /home"
 
 legacy_help="$("$ROOT/linux/work" legacy)"

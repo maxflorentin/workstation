@@ -426,6 +426,103 @@ REMOTE
     echo "clientrc doctor passed: $warnings warning(s)"
 }
 
+# --- client-profile ---
+# Prints a sanitized decision summary for one client.
+cmd_client_profile() {
+    local client="${1:-}"
+
+    if [ -z "$client" ]; then
+        echo "Usage: work client-profile <client>"
+        echo "Prints sanitized client decisions from .clientrc and host state."
+        exit 1
+    fi
+
+    _validate_client_name "$client"
+
+    echo "client profile"
+    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  client:      $client"
+    echo ""
+
+    _ssh_data "sudo CLIENT='$client' PI_USER='$PI_USER' bash -s" <<'REMOTE'
+set -e
+
+path="/home/$CLIENT/.clientrc"
+
+state() {
+    case "${1:-}" in
+        1|true|TRUE|yes|YES|on|ON) echo "enabled" ;;
+        0|false|FALSE|no|NO|off|OFF|"") echo "disabled" ;;
+        *) echo "custom" ;;
+    esac
+}
+
+read_key() {
+    local key="$1"
+    [ -f "$path" ] || return 0
+    awk -F= -v key="$key" '
+        $0 ~ "^[[:space:]]*(export[[:space:]]+)?" key "=" {
+            value=$0
+            sub("^[[:space:]]*(export[[:space:]]+)?" key "=", "", value)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+            gsub(/^["'\''"]|["'\''"]$/, "", value)
+            print value
+            exit
+        }
+    ' "$path"
+}
+
+if ! id "$CLIENT" >/dev/null 2>&1; then
+    echo "user: missing"
+    exit 0
+fi
+
+echo "user: present"
+
+if [ -f "$path" ]; then
+    echo "clientrc: present"
+else
+    echo "clientrc: missing"
+fi
+
+if id -nG "$CLIENT" | tr ' ' '\n' | grep -qx docker; then
+    echo "docker: enabled"
+else
+    echo "docker: disabled"
+fi
+
+echo "browser_companion: $(state "$(read_key WORK_CONNECT_BROWSE)")"
+echo "secondary_tailscale_declared: $(state "$(read_key WORK_CLIENT_TAILSCALE_ENABLED)")"
+echo "compliance_declared: $(state "$(read_key WORK_CLIENT_COMPLIANCE_PROFILE)")"
+
+backup_target="$(read_key WORK_CLIENT_CONFIG_BACKUP_TARGET)"
+backup_recipient="$(read_key WORK_CLIENT_CONFIG_BACKUP_RECIPIENT)"
+if [ -n "$backup_target" ] || [ -n "$backup_recipient" ]; then
+    echo "config_backup_declared: enabled"
+else
+    echo "config_backup_declared: disabled"
+fi
+
+if systemctl list-unit-files --no-legend "tailscaled-$CLIENT.service" 2>/dev/null | grep -q .; then
+    echo "secondary_tailscale_unit: present"
+else
+    echo "secondary_tailscale_unit: missing"
+fi
+
+if [ -d "/home/$CLIENT/.envy" ]; then
+    echo "envy: present"
+else
+    echo "envy: missing"
+fi
+
+if [ -d "/home/.ecryptfs/$CLIENT" ] || findmnt -no FSTYPE "/home/$CLIENT" 2>/dev/null | grep -qx ecryptfs; then
+    echo "encrypted_home: present"
+else
+    echo "encrypted_home: unknown"
+fi
+REMOTE
+}
+
 # --- onboard ---
 # Prints a sanitized onboarding checklist for a client user.
 cmd_onboard() {
@@ -453,6 +550,9 @@ client onboarding checklist
 
 [ ] Validate the client-local profile without printing values:
     work clientrc-doctor $client
+
+[ ] Review sanitized client decisions:
+    work client-profile $client
 
 [ ] Validate workstation and client basics:
     work doctor $client
@@ -499,6 +599,7 @@ client onboarding checklist
 
 == Final validation ==
 [ ] work doctor $client
+[ ] work client-profile $client
 [ ] work clientrc-doctor $client
 [ ] work vpn-doctor $client
 [ ] sudo ~/.local/bin/work compliance-doctor $client   # only if applicable
@@ -1947,6 +2048,7 @@ cmd_help() {
     echo "  work clientrc-init [--force] <client>"
     echo "                                     Install sanitized .clientrc template"
     echo "  work clientrc-doctor <client>     Validate .clientrc metadata without printing values"
+    echo "  work client-profile <client>      Print sanitized client decision summary"
     echo "  work status                       fastfetch-style workstation status"
     echo "  work health                       Quick health check with alerts"
     echo "  work watch [seconds]              Live monitor (default: 30s)"
@@ -1983,6 +2085,7 @@ case "${1:-}" in
     user-create)    shift; cmd_user_create "$@" ;;
     clientrc-init)   shift; cmd_clientrc_init "$@" ;;
     clientrc-doctor) shift; cmd_clientrc_doctor "$@" ;;
+    client-profile) shift; cmd_client_profile "$@" ;;
     doctor)         shift; cmd_doctor "$@" ;;
     compliance-doctor) shift; cmd_compliance_doctor "$@" ;;
     clamav-setup)   shift; cmd_clamav_setup "$@" ;;
