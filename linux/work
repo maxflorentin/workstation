@@ -99,9 +99,9 @@ cmd_connect() {
 
     work-tracker start "$client" "$project" "mac" 2>/dev/null || true
     if [ -n "$project" ]; then
-        _ssh_as_tty "$client" "~/.dotfiles/linux/tmux-layout '$project'"
+        _ssh_as_tty "$client" "/home/$client/.dotfiles/linux/tmux-layout '$project'"
     else
-        _ssh_as_tty "$client" "~/.dotfiles/linux/tmux-layout"
+        _ssh_as_tty "$client" "/home/$client/.dotfiles/linux/tmux-layout"
     fi
     work-tracker stop "$client" "$project" "mac" 2>/dev/null || true
 }
@@ -253,7 +253,7 @@ cmd_vpn_up() {
         echo "Edit /etc/wireguard/$client.conf and scope AllowedIPs to the client subnets."
         echo "Example: AllowedIPs = 10.0.0.0/8, 172.16.0.0/12"
         echo ""
-        read -p "Start anyway? (yes/no): " confirm
+        read -r -p "Start anyway? (yes/no): " confirm
         [ "$confirm" != "yes" ] && exit 0
     fi
 
@@ -882,6 +882,10 @@ cmd_doctor() {
         echo "info passwordless sudo unavailable; privileged checks will be limited"
     fi
 
+    local admin_home
+    admin_home=$(_ssh_quiet "getent passwd '$PI_USER' | cut -d: -f6" || true)
+    [ -z "$admin_home" ] && admin_home="/home/$PI_USER"
+
     echo ""
     echo "== Core commands =="
     for cmd in git zsh tmux nvim age jq rg curl ssh; do
@@ -940,10 +944,10 @@ REMOTE
 
     echo ""
     echo "== Dotfiles =="
-    _ssh_quiet "test -d ~/.dotfiles && test -x ~/.dotfiles/install" && _ok "~/.dotfiles install present" || _fail "~/.dotfiles install missing"
-    _ssh_quiet "test -L ~/.zshrc" && _ok "~/.zshrc symlinked" || _warn "~/.zshrc is not a symlink"
-    _ssh_quiet "test -x ~/.local/bin/work" && _ok "work CLI installed" || _warn "work CLI missing from ~/.local/bin"
-    _ssh_quiet "test -x ~/.local/bin/workstation" && _ok "workstation CLI installed" || _warn "workstation CLI missing from ~/.local/bin"
+    _ssh_quiet "test -d '$admin_home/.dotfiles' && test -x '$admin_home/.dotfiles/install'" && _ok "admin dotfiles install present" || _fail "admin dotfiles install missing"
+    _ssh_quiet "test -L '$admin_home/.zshrc'" && _ok "admin .zshrc symlinked" || _warn "admin .zshrc is not a symlink"
+    _ssh_quiet "test -x '$admin_home/.local/bin/work'" && _ok "work CLI installed" || _warn "work CLI missing from admin .local/bin"
+    _ssh_quiet "test -x '$admin_home/.local/bin/workstation'" && _ok "workstation CLI installed" || _warn "workstation CLI missing from admin .local/bin"
 
     if _ssh_quiet "command -v crontab >/dev/null"; then
         _ssh_quiet "crontab -l 2>/dev/null | grep -qF 'work-tracker pulse'" && _ok "work-tracker pulse cron installed" || _warn "work-tracker pulse cron missing"
@@ -1050,7 +1054,7 @@ cmd_destroy() {
     echo "  - WireGuard VPN config (if exists)"
     echo "  - Active tmux sessions"
     echo ""
-    read -p "Type 'yes' to confirm: " confirm
+    read -r -p "Type 'yes' to confirm: " confirm
     if [ "$confirm" != "yes" ]; then
         echo "Aborted."
         exit 0
@@ -1117,7 +1121,8 @@ cmd_browse_stop() {
     if [ -n "$client" ]; then
         _validate_client_name "$client"
         local proxy_port=$(( 1080 + $(printf '%s' "$client" | cksum | cut -d' ' -f1) % 1000 ))
-        local pid=$(lsof -ti ":$proxy_port" 2>/dev/null)
+        local pid
+        pid=$(lsof -ti ":$proxy_port" 2>/dev/null)
         if [ -n "$pid" ]; then
             kill "$pid"
             echo "SOCKS proxy stopped for $client (port $proxy_port)."
@@ -1125,7 +1130,8 @@ cmd_browse_stop() {
             echo "No proxy running for $client on port $proxy_port."
         fi
     else
-        local pids=$(ps aux | grep 'ssh -D 127.0.0.1' | grep -v grep | awk '{print $2}')
+        local pids
+        pids=$(pgrep -f 'ssh -D 127.0.0.1' 2>/dev/null || true)
         if [ -n "$pids" ]; then
             echo "$pids" | xargs kill
             echo "All SOCKS proxies stopped."
@@ -1163,7 +1169,8 @@ cmd_agvty_stop() {
     local client="${1:-}"
     if [ -n "$client" ]; then
         _validate_client_name "$client"
-        local pids=$(ps aux | grep "ssh -Y $client@" | grep antigravity | grep -v grep | awk '{print $2}')
+        local pids
+        pids=$(pgrep -f "ssh -Y $client@.*antigravity" 2>/dev/null || true)
         if [ -n "$pids" ]; then
             echo "$pids" | xargs kill
             echo "Antigravity stopped for $client."
@@ -1171,7 +1178,8 @@ cmd_agvty_stop() {
             echo "No Antigravity session for $client."
         fi
     else
-        local pids=$(ps aux | grep 'ssh -Y.*antigravity' | grep -v grep | awk '{print $2}')
+        local pids
+        pids=$(pgrep -f 'ssh -Y.*antigravity' 2>/dev/null || true)
         if [ -n "$pids" ]; then
             echo "$pids" | xargs kill
             echo "All Antigravity sessions stopped."
@@ -1208,15 +1216,16 @@ cmd_health() {
         echo \"ram_pct=\$ram_pct|ram=\${ram_used}/\${ram_total}|disk_pct=\$disk_pct|disk=\${disk_used}/\${disk_total}|temp=\${temp_c}|load=\$load|docker=\$docker_count|vpn=\$wg_count|up=\$up\"
     ")
 
-    local ram_pct=$(echo "$metrics" | cut -d'|' -f1 | cut -d'=' -f2)
-    local ram=$(echo "$metrics" | cut -d'|' -f2 | cut -d'=' -f2)
-    local disk_pct=$(echo "$metrics" | cut -d'|' -f3 | cut -d'=' -f2)
-    local disk=$(echo "$metrics" | cut -d'|' -f4 | cut -d'=' -f2)
-    local temp=$(echo "$metrics" | cut -d'|' -f5 | cut -d'=' -f2)
-    local load=$(echo "$metrics" | cut -d'|' -f6 | cut -d'=' -f2)
-    local docker=$(echo "$metrics" | cut -d'|' -f7 | cut -d'=' -f2)
-    local vpn=$(echo "$metrics" | cut -d'|' -f8 | cut -d'=' -f2)
-    local up=$(echo "$metrics" | cut -d'|' -f9 | cut -d'=' -f2)
+    local ram_pct ram disk_pct disk temp load docker vpn up
+    ram_pct=$(echo "$metrics" | cut -d'|' -f1 | cut -d'=' -f2)
+    ram=$(echo "$metrics" | cut -d'|' -f2 | cut -d'=' -f2)
+    disk_pct=$(echo "$metrics" | cut -d'|' -f3 | cut -d'=' -f2)
+    disk=$(echo "$metrics" | cut -d'|' -f4 | cut -d'=' -f2)
+    temp=$(echo "$metrics" | cut -d'|' -f5 | cut -d'=' -f2)
+    load=$(echo "$metrics" | cut -d'|' -f6 | cut -d'=' -f2)
+    docker=$(echo "$metrics" | cut -d'|' -f7 | cut -d'=' -f2)
+    vpn=$(echo "$metrics" | cut -d'|' -f8 | cut -d'=' -f2)
+    up=$(echo "$metrics" | cut -d'|' -f9 | cut -d'=' -f2)
 
     [ "$ram_pct" -gt 85 ] 2>/dev/null && warn="${warn}RAM critical (${ram_pct}%) "
     [ "$disk_pct" -gt 85 ] 2>/dev/null && warn="${warn}Disk critical (${disk_pct}%) "
@@ -1234,7 +1243,8 @@ cmd_health() {
     if [ -n "$warn" ]; then
         echo ""
         echo "  WARN: $warn"
-        local safe_warn=$(echo "$warn" | tr -cd '[:alnum:] %().')
+        local safe_warn
+        safe_warn=$(echo "$warn" | tr -cd '[:alnum:] %().')
         osascript -e "display notification \"$safe_warn\" with title \"work health\" sound name \"Basso\"" 2>/dev/null
     fi
 }
