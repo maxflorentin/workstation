@@ -56,10 +56,11 @@ Start from:
 
 ```bash
 work clientrc-init <client>
+work clientrc-doctor <client>
 ```
 
 Then edit the file on the workstation with real values. Never commit the
-result.
+result. The doctor checks metadata and expected keys without printing values.
 
 ## Validation
 
@@ -68,6 +69,7 @@ For generic checks:
 ```bash
 workstation ci
 work doctor <client>
+work clientrc-doctor <client>
 work vpn-doctor <client>
 ```
 

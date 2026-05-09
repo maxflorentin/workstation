@@ -336,6 +336,96 @@ echo "  .clientrc installed from template"
 REMOTE
 }
 
+# --- clientrc-doctor ---
+# Validates client-local .clientrc without printing values.
+cmd_clientrc_doctor() {
+    local client="${1:-}"
+    local failures=0
+    local warnings=0
+
+    _ok() { echo "ok   $*"; }
+    _warn() { echo "warn $*"; warnings=$((warnings + 1)); }
+    _fail() { echo "fail $*"; failures=$((failures + 1)); }
+
+    if [ -z "$client" ]; then
+        echo "Usage: work clientrc-doctor <client>"
+        exit 1
+    fi
+
+    _validate_client_name "$client"
+
+    echo "clientrc doctor"
+    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  client:      $client"
+    echo ""
+
+    local result
+    result=$(_ssh_data "sudo CLIENT='$client' bash -s" <<'REMOTE'
+set -e
+
+path="/home/$CLIENT/.clientrc"
+
+if ! id "$CLIENT" >/dev/null 2>&1; then
+    echo "FAIL client user does not exist"
+    exit 0
+fi
+echo "OK client user exists"
+
+if [ ! -f "$path" ]; then
+    echo "FAIL .clientrc missing"
+    exit 0
+fi
+echo "OK .clientrc exists"
+
+owner="$(stat -c '%U:%G' "$path" 2>/dev/null || true)"
+mode="$(stat -c '%a' "$path" 2>/dev/null || true)"
+
+if [ "$owner" = "$CLIENT:$CLIENT" ]; then
+    echo "OK .clientrc owner is client"
+else
+    echo "FAIL .clientrc owner is ${owner:-unknown}, expected $CLIENT:$CLIENT"
+fi
+
+if [ "$mode" = "600" ]; then
+    echo "OK .clientrc mode is 600"
+else
+    echo "WARN .clientrc mode is ${mode:-unknown}, expected 600"
+fi
+
+for key in WORK_CLIENT_LABEL WORK_CONNECT_BROWSE WORK_CLIENT_TAILSCALE_ENABLED WORK_CLIENT_COMPLIANCE_PROFILE; do
+    if grep -Eq "^[[:space:]]*(export[[:space:]]+)?$key=" "$path"; then
+        echo "OK key present: $key"
+    else
+        echo "WARN key missing: $key"
+    fi
+done
+
+if grep -q '<client>' "$path"; then
+    echo "WARN placeholder remains in .clientrc"
+else
+    echo "OK no <client> placeholder remains"
+fi
+REMOTE
+)
+
+    while IFS= read -r line; do
+        case "$line" in
+            OK\ *) _ok "${line#OK }" ;;
+            WARN\ *) _warn "${line#WARN }" ;;
+            FAIL\ *) _fail "${line#FAIL }" ;;
+            *) [ -n "$line" ] && echo "info $line" ;;
+        esac
+    done <<< "$result"
+
+    echo ""
+    if [ "$failures" -gt 0 ]; then
+        echo "clientrc doctor failed: $failures failure(s), $warnings warning(s)"
+        exit 1
+    fi
+
+    echo "clientrc doctor passed: $warnings warning(s)"
+}
+
 # --- VPN ---
 cmd_vpn_up() {
     local client="$1"
@@ -1298,6 +1388,13 @@ REMOTE
                 fi
                 if _ssh_quiet "sudo -n test -f /home/$client/.clientrc"; then
                     _ok "client .clientrc present"
+                    local clientrc_meta
+                    clientrc_meta=$(_ssh_quiet "sudo -n stat -c '%U:%G %a' /home/$client/.clientrc" || true)
+                    if [ "$clientrc_meta" = "$client:$client 600" ]; then
+                        _ok "client .clientrc owner/mode sane"
+                    else
+                        _warn "client .clientrc owner/mode is ${clientrc_meta:-unknown}, expected $client:$client 600"
+                    fi
                 else
                     _warn "client .clientrc missing"
                 fi
@@ -1769,6 +1866,7 @@ cmd_help() {
     echo "  work user-create <client>         Create a dedicated Linux user for a client"
     echo "  work clientrc-init [--force] <client>"
     echo "                                     Install sanitized .clientrc template"
+    echo "  work clientrc-doctor <client>     Validate .clientrc metadata without printing values"
     echo "  work status                       fastfetch-style workstation status"
     echo "  work health                       Quick health check with alerts"
     echo "  work watch [seconds]              Live monitor (default: 30s)"
@@ -1803,6 +1901,7 @@ case "${1:-}" in
     connect)        shift; cmd_connect "$@" ;;
     user-create)    shift; cmd_user_create "$@" ;;
     clientrc-init)   shift; cmd_clientrc_init "$@" ;;
+    clientrc-doctor) shift; cmd_clientrc_doctor "$@" ;;
     doctor)         shift; cmd_doctor "$@" ;;
     compliance-doctor) shift; cmd_compliance_doctor "$@" ;;
     clamav-setup)   shift; cmd_clamav_setup "$@" ;;
