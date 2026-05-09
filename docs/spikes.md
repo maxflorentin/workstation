@@ -43,6 +43,7 @@ Current opt-in:
 
 ```bash
 WORK_CONNECT_BROWSE=1 work connect <client>
+work connect --browse <client>
 ```
 
 Design notes:
@@ -52,5 +53,5 @@ Design notes:
 - Keep `work browse <client>` and `work browse-stop <client>` as explicit
   commands.
 - Reuse the existing per-client SOCKS proxy and Chrome profile naming.
-- Later, consider a CLI flag such as `work connect --browse <client>` if the
-  command parser is cleaned up.
+- `--browse` is preferred for one-off sessions; `WORK_CONNECT_BROWSE=1` is
+  useful for a shell/profile default.

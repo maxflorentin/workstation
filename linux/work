@@ -90,12 +90,26 @@ _truthy() {
 # --- connect ---
 cmd_connect() {
     local client="${1:-}"
-    local project="${2:-}"
+    local project=""
+    local connect_browse="${WORK_CONNECT_BROWSE:-}"
 
     if [ -z "$client" ]; then
         # No client → connect as admin to a plain tmux session
         _ssh_tty "tmux attach 2>/dev/null || tmux new -s main"
         return
+    fi
+
+    if [ "$client" = "--browse" ]; then
+        connect_browse=1
+        client="${2:-}"
+        project="${3:-}"
+    else
+        project="${2:-}"
+    fi
+
+    if [ -z "$client" ]; then
+        echo "Usage: work connect [--browse] <client> [project]"
+        exit 1
     fi
 
     _validate_client_name "$client"
@@ -105,7 +119,7 @@ cmd_connect() {
     # See: docs/ecryptfs.md
     _ssh_quiet "sudo /usr/local/sbin/ecryptfs-auto-mount '$client'" || true
 
-    if _truthy "${WORK_CONNECT_BROWSE:-}"; then
+    if _truthy "$connect_browse"; then
         cmd_browse "$client"
     fi
 
