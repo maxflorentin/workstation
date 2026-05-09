@@ -988,7 +988,7 @@ cmd_doctor() {
     shell_output=$(_ssh_data "zsh -lic 'true' 2>&1" || true)
     if [ -n "$shell_output" ]; then
         _warn "interactive zsh emits output during startup"
-        echo "$shell_output" | sed 's/^/     /'
+        printf '%s\n' "${shell_output//$'\n'/$'\n'     }" | sed '1s/^/     /'
     else
         _ok "interactive zsh starts cleanly"
     fi
@@ -1011,24 +1011,56 @@ cmd_doctor() {
     echo ""
     echo "== Core commands =="
     for cmd in git zsh tmux nvim age jq rg curl ssh; do
-        _ssh_quiet "command -v '$cmd' >/dev/null" && _ok "$cmd" || _fail "missing command: $cmd"
+        if _ssh_quiet "command -v '$cmd' >/dev/null"; then
+            _ok "$cmd"
+        else
+            _fail "missing command: $cmd"
+        fi
     done
     for cmd in docker tailscale fastfetch shellcheck; do
-        _ssh_quiet "command -v '$cmd' >/dev/null" && _ok "$cmd" || _warn "optional command missing: $cmd"
+        if _ssh_quiet "command -v '$cmd' >/dev/null"; then
+            _ok "$cmd"
+        else
+            _warn "optional command missing: $cmd"
+        fi
     done
 
     if _ssh_quiet "command -v fnm >/dev/null"; then
-        _ssh_quiet "fnm --version >/dev/null" && _ok "fnm usable" || _warn "fnm exists but cannot run; reinstall it for this CPU architecture"
+        if _ssh_quiet "fnm --version >/dev/null"; then
+            _ok "fnm usable"
+        else
+            _warn "fnm exists but cannot run; reinstall it for this CPU architecture"
+        fi
     fi
 
     echo ""
     echo "== Services =="
-    _ssh_quiet "systemctl is-active --quiet tailscaled" && _ok "tailscaled active" || _fail "tailscaled not active"
-    _ssh_quiet "systemctl is-enabled --quiet tailscaled" && _ok "tailscaled enabled" || _warn "tailscaled not enabled"
-    _ssh_quiet "systemctl is-active --quiet sshd || systemctl is-active --quiet ssh" && _ok "ssh service active" || _fail "ssh service not active"
-    _ssh_quiet "systemctl is-enabled --quiet sshd || systemctl is-enabled --quiet ssh" && _ok "ssh service enabled" || _warn "ssh service not enabled"
+    if _ssh_quiet "systemctl is-active --quiet tailscaled"; then
+        _ok "tailscaled active"
+    else
+        _fail "tailscaled not active"
+    fi
+    if _ssh_quiet "systemctl is-enabled --quiet tailscaled"; then
+        _ok "tailscaled enabled"
+    else
+        _warn "tailscaled not enabled"
+    fi
+    if _ssh_quiet "systemctl is-active --quiet sshd || systemctl is-active --quiet ssh"; then
+        _ok "ssh service active"
+    else
+        _fail "ssh service not active"
+    fi
+    if _ssh_quiet "systemctl is-enabled --quiet sshd || systemctl is-enabled --quiet ssh"; then
+        _ok "ssh service enabled"
+    else
+        _warn "ssh service not enabled"
+    fi
     if _ssh_quiet "command -v docker >/dev/null"; then
-        _ssh_quiet "systemctl is-active --quiet docker" && _ok "docker active" || _warn "docker not active"
+        if _ssh_quiet "systemctl is-active --quiet docker"; then
+            _ok "docker active"
+        else
+            _warn "docker not active"
+        fi
     fi
 
     echo ""
@@ -1054,10 +1086,22 @@ REMOTE
     ram_pct=$(echo "$metrics" | awk '{for(i=1;i<=NF;i++) if($i ~ /^ram_pct=/){sub("ram_pct=","",$i); print $i}}')
     disk_pct=$(echo "$metrics" | awk '{for(i=1;i<=NF;i++) if($i ~ /^disk_pct=/){sub("disk_pct=","",$i); print $i}}')
     temp_c=$(echo "$metrics" | awk '{for(i=1;i<=NF;i++) if($i ~ /^temp_c=/){sub("temp_c=","",$i); print $i}}')
-    [ "${ram_pct:-0}" -lt 90 ] 2>/dev/null && _ok "memory below 90%" || _warn "memory high: ${ram_pct:-unknown}%"
-    [ "${disk_pct:-0}" -lt 85 ] 2>/dev/null && _ok "root disk below 85%" || _warn "root disk high: ${disk_pct:-unknown}%"
+    if [ "${ram_pct:-0}" -lt 90 ] 2>/dev/null; then
+        _ok "memory below 90%"
+    else
+        _warn "memory high: ${ram_pct:-unknown}%"
+    fi
+    if [ "${disk_pct:-0}" -lt 85 ] 2>/dev/null; then
+        _ok "root disk below 85%"
+    else
+        _warn "root disk high: ${disk_pct:-unknown}%"
+    fi
     if [ -n "${temp_c:-}" ]; then
-        [ "$temp_c" -lt 80 ] 2>/dev/null && _ok "temperature below 80C" || _warn "temperature high: ${temp_c}C"
+        if [ "$temp_c" -lt 80 ] 2>/dev/null; then
+            _ok "temperature below 80C"
+        else
+            _warn "temperature high: ${temp_c}C"
+        fi
     elif _ssh_quiet "command -v sensors >/dev/null"; then
         _warn "temperature sensor unavailable through sysfs"
     else
@@ -1066,14 +1110,38 @@ REMOTE
 
     echo ""
     echo "== Dotfiles =="
-    _ssh_quiet "test -d '$admin_home/.dotfiles' && test -x '$admin_home/.dotfiles/install'" && _ok "admin dotfiles install present" || _fail "admin dotfiles install missing"
-    _ssh_quiet "test -L '$admin_home/.zshrc'" && _ok "admin .zshrc symlinked" || _warn "admin .zshrc is not a symlink"
-    _ssh_quiet "test -x '$admin_home/.local/bin/work'" && _ok "work CLI installed" || _warn "work CLI missing from admin .local/bin"
-    _ssh_quiet "test -x '$admin_home/.local/bin/workstation'" && _ok "workstation CLI installed" || _warn "workstation CLI missing from admin .local/bin"
+    if _ssh_quiet "test -d '$admin_home/.dotfiles' && test -x '$admin_home/.dotfiles/install'"; then
+        _ok "admin dotfiles install present"
+    else
+        _fail "admin dotfiles install missing"
+    fi
+    if _ssh_quiet "test -L '$admin_home/.zshrc'"; then
+        _ok "admin .zshrc symlinked"
+    else
+        _warn "admin .zshrc is not a symlink"
+    fi
+    if _ssh_quiet "test -x '$admin_home/.local/bin/work'"; then
+        _ok "work CLI installed"
+    else
+        _warn "work CLI missing from admin .local/bin"
+    fi
+    if _ssh_quiet "test -x '$admin_home/.local/bin/workstation'"; then
+        _ok "workstation CLI installed"
+    else
+        _warn "workstation CLI missing from admin .local/bin"
+    fi
 
     if _ssh_quiet "command -v crontab >/dev/null"; then
-        _ssh_quiet "crontab -l 2>/dev/null | grep -qF 'work-tracker pulse'" && _ok "work-tracker pulse cron installed" || _warn "work-tracker pulse cron missing"
-        _ssh_quiet "crontab -l 2>/dev/null | grep -qF 'work-tracker monthly-save'" && _ok "work-tracker monthly-save cron installed" || _warn "work-tracker monthly-save cron missing"
+        if _ssh_quiet "crontab -l 2>/dev/null | grep -qF 'work-tracker pulse'"; then
+            _ok "work-tracker pulse cron installed"
+        else
+            _warn "work-tracker pulse cron missing"
+        fi
+        if _ssh_quiet "crontab -l 2>/dev/null | grep -qF 'work-tracker monthly-save'"; then
+            _ok "work-tracker monthly-save cron installed"
+        else
+            _warn "work-tracker monthly-save cron missing"
+        fi
     fi
 
     echo ""
@@ -1081,7 +1149,7 @@ REMOTE
     local clients
     clients=$(_list_clients || true)
     if [ -n "$clients" ]; then
-        echo "$clients" | sed 's/^/     /'
+        printf '%s\n' "${clients//$'\n'/$'\n'     }" | sed '1s/^/     /'
     else
         _warn "no client users found"
     fi
@@ -1096,16 +1164,40 @@ REMOTE
             local home_mode client_shell
             home_mode=$(_ssh_quiet "stat -c %a /home/$client 2>/dev/null" || true)
             client_shell=$(_ssh_quiet "getent passwd '$client' | cut -d: -f7" || true)
-            [ "$home_mode" = "700" ] && _ok "home mode is 700" || _warn "home mode is ${home_mode:-unknown}, expected 700"
-            [ "$client_shell" = "/bin/zsh" ] || [ "$client_shell" = "/usr/bin/zsh" ] && _ok "login shell is zsh" || _warn "login shell is ${client_shell:-unknown}"
+            if [ "$home_mode" = "700" ]; then
+                _ok "home mode is 700"
+            else
+                _warn "home mode is ${home_mode:-unknown}, expected 700"
+            fi
+            if [ "$client_shell" = "/bin/zsh" ] || [ "$client_shell" = "/usr/bin/zsh" ]; then
+                _ok "login shell is zsh"
+            else
+                _warn "login shell is ${client_shell:-unknown}"
+            fi
             if [ "$admin_sudo" -eq 1 ]; then
-                _ssh_quiet "sudo -n test -d /home/$client/.dotfiles" && _ok "client dotfiles present" || _warn "client dotfiles missing"
-                _ssh_quiet "sudo -n test -f /home/$client/.clientrc" && _ok "client .clientrc present" || _warn "client .clientrc missing"
-                _ssh_quiet "sudo -n test -x /home/$client/.local/bin/work-tracker" && _ok "client work-tracker installed" || _warn "client work-tracker missing"
+                if _ssh_quiet "sudo -n test -d /home/$client/.dotfiles"; then
+                    _ok "client dotfiles present"
+                else
+                    _warn "client dotfiles missing"
+                fi
+                if _ssh_quiet "sudo -n test -f /home/$client/.clientrc"; then
+                    _ok "client .clientrc present"
+                else
+                    _warn "client .clientrc missing"
+                fi
+                if _ssh_quiet "sudo -n test -x /home/$client/.local/bin/work-tracker"; then
+                    _ok "client work-tracker installed"
+                else
+                    _warn "client work-tracker missing"
+                fi
             else
                 echo "info skipping client dotfile checks because passwordless sudo is unavailable"
             fi
-            _ssh_quiet "id -nG '$client' | tr ' ' '\n' | grep -qx docker" && _warn "client is in docker group (privileged host access)" || _ok "client not in docker group"
+            if _ssh_quiet "id -nG '$client' | tr ' ' '\n' | grep -qx docker"; then
+                _warn "client is in docker group (privileged host access)"
+            else
+                _ok "client not in docker group"
+            fi
         fi
     fi
 
