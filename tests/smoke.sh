@@ -61,6 +61,7 @@ else
     fail "work help"
 fi
 check_output_contains "work help documents connect browse flag" "$work_help" "work connect [--browse]"
+check_output_contains "work help documents clients" "$work_help" "work clients"
 check_output_contains "work help documents onboard" "$work_help" "work onboard <client>"
 check_output_contains "work help documents clientrc init" "$work_help" "work clientrc-init [--force] <client>"
 check_output_contains "work help documents clientrc doctor" "$work_help" "work clientrc-doctor <client>"

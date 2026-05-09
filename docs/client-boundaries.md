@@ -70,6 +70,7 @@ For generic checks:
 
 ```bash
 work onboard <client>
+work clients
 workstation ci
 work doctor <client>
 work client-profile <client>

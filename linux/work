@@ -523,6 +523,90 @@ fi
 REMOTE
 }
 
+# --- clients ---
+# Lists client users with sanitized operational state.
+cmd_clients() {
+    echo "clients"
+    echo "  workstation: $PI_USER@$PI_HOST"
+    echo ""
+
+    _ssh_data "sudo PI_USER='$PI_USER' bash -s" <<'REMOTE'
+set -e
+
+state() {
+    case "${1:-}" in
+        1|true|TRUE|yes|YES|on|ON) echo "on" ;;
+        0|false|FALSE|no|NO|off|OFF|"") echo "off" ;;
+        *) echo "custom" ;;
+    esac
+}
+
+read_key() {
+    local path="$1"
+    local key="$2"
+    [ -f "$path" ] || return 0
+    awk -F= -v key="$key" '
+        $0 ~ "^[[:space:]]*(export[[:space:]]+)?" key "=" {
+            value=$0
+            sub("^[[:space:]]*(export[[:space:]]+)?" key "=", "", value)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+            gsub(/^["'\''"]|["'\''"]$/, "", value)
+            print value
+            exit
+        }
+    ' "$path"
+}
+
+clients=$(getent passwd | awk -F: -v admin="$PI_USER" '$3>=1000 && $1!=admin && $1!="nobody" && $1!="encryption_user" && $7 !~ /(nologin|false)$/ && $6 ~ /^\/home\// {print $1}' | sort)
+
+if [ -z "$clients" ]; then
+    echo "(no client users found)"
+    exit 0
+fi
+
+printf '%-18s %-8s %-6s %-8s %-10s %-10s %-10s %-10s\n' \
+    "client" "clientrc" "docker" "browser" "tailscale" "compliance" "backup" "encrypted"
+
+while IFS= read -r client; do
+    [ -z "$client" ] && continue
+    path="/home/$client/.clientrc"
+
+    if [ -f "$path" ]; then
+        clientrc="yes"
+    else
+        clientrc="no"
+    fi
+
+    if id -nG "$client" | tr ' ' '\n' | grep -qx docker; then
+        docker="yes"
+    else
+        docker="no"
+    fi
+
+    browser="$(state "$(read_key "$path" WORK_CONNECT_BROWSE)")"
+    tailscale="$(state "$(read_key "$path" WORK_CLIENT_TAILSCALE_ENABLED)")"
+    compliance="$(state "$(read_key "$path" WORK_CLIENT_COMPLIANCE_PROFILE)")"
+
+    backup_target="$(read_key "$path" WORK_CLIENT_CONFIG_BACKUP_TARGET)"
+    backup_recipient="$(read_key "$path" WORK_CLIENT_CONFIG_BACKUP_RECIPIENT)"
+    if [ -n "$backup_target" ] || [ -n "$backup_recipient" ]; then
+        backup="on"
+    else
+        backup="off"
+    fi
+
+    if [ -d "/home/.ecryptfs/$client" ] || findmnt -no FSTYPE "/home/$client" 2>/dev/null | grep -qx ecryptfs; then
+        encrypted="yes"
+    else
+        encrypted="unknown"
+    fi
+
+    printf '%-18s %-8s %-6s %-8s %-10s %-10s %-10s %-10s\n' \
+        "$client" "$clientrc" "$docker" "$browser" "$tailscale" "$compliance" "$backup" "$encrypted"
+done <<< "$clients"
+REMOTE
+}
+
 # --- onboard ---
 # Prints a sanitized onboarding checklist for a client user.
 cmd_onboard() {
@@ -2043,6 +2127,7 @@ cmd_help() {
     echo "                                     Export encrypted config-only backup"
     echo "  work connect [--browse] [client] [project]"
     echo "                                     SSH as client + tmux; optionally open browser"
+    echo "  work clients                      List sanitized client state summary"
     echo "  work onboard <client>             Print sanitized client onboarding checklist"
     echo "  work user-create <client>         Create a dedicated Linux user for a client"
     echo "  work clientrc-init [--force] <client>"
@@ -2081,6 +2166,7 @@ cmd_help() {
 
 case "${1:-}" in
     connect)        shift; cmd_connect "$@" ;;
+    clients)        cmd_clients ;;
     onboard)        shift; cmd_onboard "$@" ;;
     user-create)    shift; cmd_user_create "$@" ;;
     clientrc-init)   shift; cmd_clientrc_init "$@" ;;
