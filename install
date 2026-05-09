@@ -38,7 +38,7 @@ if [ -d "$DOTFILES/scripts/envy" ]; then
 fi
 
 # Standalone scripts
-for s in gh-clone-org brew-sync py-setup xam-digest sqlit-add-connection work-tracker; do
+for s in gh-clone-org brew-sync py-setup sqlit-add-connection work-tracker; do
     [ -f "$DOTFILES/scripts/$s" ] && ln -sf "$DOTFILES/scripts/$s" "$HOME/.local/bin/$s"
 done
 
