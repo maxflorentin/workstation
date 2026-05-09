@@ -39,6 +39,7 @@ Linux workstation
 | Command | Scope | Purpose |
 |---------|-------|---------|
 | `./install` | local user | Dotfiles, symlinks, PATH, scripts |
+| `workstation ci` | repo-local | Run lint and smoke checks |
 | `workstation smoke` | repo-local | Fast syntax/help checks |
 | `workstation lint` | repo-local | Shellcheck, whitespace, and sanitization checks |
 | `workstation doctor` | local host | Validate prerequisites and links |

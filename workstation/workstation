@@ -25,6 +25,7 @@ Commands:
   workstation doctor        Validate local repo and host prerequisites
   workstation smoke         Run fast syntax/smoke checks
   workstation lint          Run repo lint and sanitization checks
+  workstation ci            Run lint and smoke checks
   workstation bootstrap     Run legacy Linux workstation bootstrap
 
 Notes:
@@ -45,6 +46,11 @@ case "${1:-}" in
     lint)
         shift
         exec "$ROOT/tests/lint.sh" "$@"
+        ;;
+    ci)
+        shift
+        "$ROOT/tests/lint.sh" "$@"
+        "$ROOT/tests/smoke.sh" "$@"
         ;;
     bootstrap)
         shift

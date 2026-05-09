@@ -60,6 +60,7 @@ Safe to run multiple times.
 ## Validation
 
 ```bash
+workstation ci                 # lint + smoke, same checks as GitHub Actions
 workstation smoke              # local syntax/help checks, no network
 workstation lint               # shellcheck, whitespace, sanitization checks
 workstation doctor             # local host/repo validation
