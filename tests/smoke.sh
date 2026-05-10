@@ -172,6 +172,16 @@ clientrc_init_limited="$(
 )"
 check_output_contains "work clientrc-init avoids sudo prompt" "$clientrc_init_limited" "clientrc-init requires sudo on the workstation"
 check_output_contains "work clientrc-init suggests sudo command" "$clientrc_init_limited" "sudo ~/.local/bin/work clientrc-init acme"
+tailscale_setup_limited="$(
+    PATH="$tmp_bin:$PATH" WORKSTATION_HOST=smoke-host WORKSTATION_USER=max "$ROOT/linux/work" tailscale-setup acme 2>&1 || true
+)"
+check_output_contains "work tailscale-setup avoids sudo prompt" "$tailscale_setup_limited" "tailscale-setup requires sudo on the workstation"
+check_output_contains "work tailscale-setup suggests sudo command" "$tailscale_setup_limited" "sudo ~/.local/bin/work tailscale-setup acme"
+clamav_setup_limited="$(
+    PATH="$tmp_bin:$PATH" WORKSTATION_HOST=smoke-host WORKSTATION_USER=max "$ROOT/linux/work" clamav-setup 2>&1 || true
+)"
+check_output_contains "work clamav-setup avoids sudo prompt" "$clamav_setup_limited" "clamav-setup requires sudo on the workstation"
+check_output_contains "work clamav-setup suggests sudo command" "$clamav_setup_limited" "sudo ~/.local/bin/work clamav-setup"
 rm -rf "$tmp_bin"
 
 report_missing_tracker="$(
