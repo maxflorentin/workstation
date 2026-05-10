@@ -92,12 +92,12 @@ private-config-backup/
       clientrc.age
       dns-filtering.age
       wazuh-scope.age
-      tailscale-notes.age
+      tailscale-wrapper.age
+      tailscale-unit.age
       compliance-latest.age
   workstation/
     ssh-authorized-keys.age
-    systemd-units.age
-    restore-notes.age
+    systemd-client-units.age
 ```
 
 Rules:

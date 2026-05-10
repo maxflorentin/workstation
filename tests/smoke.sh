@@ -88,6 +88,18 @@ check_output_contains "work clientrc-doctor requires client" "$clientrc_doctor_u
 client_profile_usage="$("$ROOT/linux/work" client-profile 2>&1)"
 check_output_contains "work client-profile requires client" "$client_profile_usage" "Usage: work client-profile <client>"
 
+config_backup_usage="$("$ROOT/linux/work" config-backup 2>&1)"
+check_output_contains "work config-backup requires args" "$config_backup_usage" "Usage: work config-backup <client> <dest-dir> <age-recipient>"
+
+tmp_backup_target="$(mktemp -d "${TMPDIR:-/tmp}/work-config-backup-target.XXXXXX")"
+config_backup_remote_guard="$("$ROOT/linux/work" config-backup acme "$tmp_backup_target" 'age1testrecipient' 2>&1 || true)"
+if printf '%s\n' "$config_backup_remote_guard" | grep -qE 'config-backup must run on the workstation|config-backup requires sudo'; then
+    ok "work config-backup refuses unsafe local context"
+else
+    fail "work config-backup refuses unsafe local context"
+fi
+rm -rf "$tmp_backup_target"
+
 onboard_usage="$("$ROOT/linux/work" onboard 2>&1)"
 check_output_contains "work onboard requires client" "$onboard_usage" "Usage: work onboard <client>"
 
