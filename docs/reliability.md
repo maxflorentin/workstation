@@ -54,7 +54,8 @@ WORK_BACKUP_TARGET=/path/to/backup-root work backup-doctor
 
 When `WORK_BACKUP_TARGET` is set, the doctor checks the expected private backup
 repo structure: `README.restore.md`, `MANIFEST.tsv`, `clients/`, and
-`workstation/`.
+`workstation/`. It also checks that `MANIFEST.tsv` uses the current schema with
+`bytes` and `sha256` columns.
 
 ## Encrypted Config Backup
 

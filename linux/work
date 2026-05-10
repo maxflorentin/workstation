@@ -1417,6 +1417,11 @@ cmd_backup_doctor() {
             fi
             if _ssh_quiet "test -f '$WORK_BACKUP_TARGET/MANIFEST.tsv'"; then
                 _ok "backup manifest present"
+                if _ssh_quiet "head -n 1 '$WORK_BACKUP_TARGET/MANIFEST.tsv' | grep -qx 'timestamp	client	status	path	bytes	sha256	label'"; then
+                    _ok "backup manifest schema current"
+                else
+                    _warn "backup manifest schema is missing bytes/sha256 columns"
+                fi
             else
                 _warn "backup manifest missing"
             fi
