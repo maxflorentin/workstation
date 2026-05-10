@@ -31,6 +31,18 @@ The Mac is the operator machine. The workstation owns long-running state,
 client separation, Docker workloads, and tmux sessions. Mobile access is for
 small interventions and status checks, not deep editing.
 
+Use Homebrew profiles deliberately:
+
+```bash
+brew bundle --file macos/Brewfile              # personal Mac
+brew bundle --file macos/Brewfile.corporate   # managed/corporate Mac
+brew bundle --file macos/Brewfile.workstation # minimal Dell operator tooling
+```
+
+`brew-sync --profile <personal|corporate|workstation>` updates one tracked
+profile at a time. Client-specific package needs should normally stay inside
+the target workstation user, not in the Mac baseline.
+
 ## Daily Flow
 
 Start a client workspace:

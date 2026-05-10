@@ -30,12 +30,27 @@ Keep these on the workstation or in a separate encrypted private backup:
 
 The Mac can keep operator conveniences:
 
-- Homebrew state in `macos/Brewfile`;
+- Homebrew state in explicit profiles:
+  - `macos/Brewfile` for the personal Mac;
+  - `macos/Brewfile.corporate` for managed/corporate Macs;
+  - `macos/Brewfile.workstation` for minimal operator tooling against the Dell;
 - browser profile launchers and SOCKS proxy state;
 - SSH client config using placeholders in docs and real aliases locally.
 
 Do not copy real client SSH aliases, hostnames, proxy URLs, or browser profile
 paths into this repo.
+
+Sync a specific Homebrew profile explicitly:
+
+```bash
+brew-sync --profile personal
+brew-sync --profile corporate
+brew-sync --profile workstation
+```
+
+Do not put client-only package requirements in a Mac Brewfile by default. Prefer
+installing those inside the intended `/home/<client>` environment or documenting
+them as client-local notes in the private encrypted config backup.
 
 ## Workstation-Local
 

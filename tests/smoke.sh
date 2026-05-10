@@ -47,6 +47,12 @@ check_bash "$ROOT/scripts/work-tracker"
 check_bash "$ROOT/workstation/workstation"
 check_bash "$ROOT/workstation/doctor"
 
+if [ -f "$ROOT/macos/Brewfile.workstation" ] && grep -q 'brew "shellcheck"' "$ROOT/macos/Brewfile.workstation"; then
+    ok "workstation Brewfile profile exists"
+else
+    fail "workstation Brewfile profile exists"
+fi
+
 echo ""
 if "$ROOT/workstation/workstation" help >/dev/null; then
     ok "workstation help"
@@ -73,6 +79,9 @@ check_output_contains "work help documents tracker doctor" "$work_help" "work tr
 check_output_contains "work help documents tracker repair" "$work_help" "work tracker-repair <client|--all>"
 check_output_contains "work help documents config backup dry run" "$work_help" "work config-backup [--dry-run]"
 check_output_contains "work help documents legacy commands" "$work_help" "work legacy"
+
+brew_sync_help="$("$ROOT/scripts/brew-sync" --help)"
+check_output_contains "brew-sync documents profile flag" "$brew_sync_help" "brew-sync --profile workstation"
 
 connect_usage="$("$ROOT/linux/work" connect --browse 2>&1)"
 check_output_contains "work connect --browse requires client" "$connect_usage" "Usage: work connect [--browse] <client> [project]"

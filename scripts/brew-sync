@@ -1,8 +1,11 @@
 #!/bin/bash
-# brew-sync: Dump current Homebrew state to macos/Brewfile.
+# brew-sync: Dump current Homebrew state to a tracked Brewfile profile.
 #
 # Default mode is non-committing:
 #   brew-sync
+#   brew-sync --profile personal
+#   brew-sync --profile corporate
+#   brew-sync --profile workstation
 #
 # Explicit commit mode:
 #   brew-sync --commit
@@ -11,28 +14,40 @@
 set -euo pipefail
 
 DOTFILES="$HOME/.dotfiles"
-BREWFILE="$DOTFILES/macos/Brewfile"
+PROFILE="personal"
 COMMIT=false
 PUSH=false
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --profile)
+      [ $# -ge 2 ] || { echo "Missing value for --profile" >&2; exit 2; }
+      PROFILE="$2"
+      shift 2
+      ;;
     --commit) COMMIT=true; shift ;;
     --push) PUSH=true; COMMIT=true; shift ;;
     -h|--help)
-      sed -n '2,10p' "$0" | sed 's/^# \?//'
+      sed -n '2,13p' "$0" | sed 's/^# \?//'
       exit 0
       ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
 
+case "$PROFILE" in
+  personal) BREWFILE="$DOTFILES/macos/Brewfile" ;;
+  corporate) BREWFILE="$DOTFILES/macos/Brewfile.corporate" ;;
+  workstation) BREWFILE="$DOTFILES/macos/Brewfile.workstation" ;;
+  *) echo "Unknown profile: $PROFILE" >&2; exit 2 ;;
+esac
+
 if ! command -v brew >/dev/null 2>&1; then
   echo "brew-sync: Homebrew is not installed" >&2
   exit 1
 fi
 
-echo "brew-sync: dumping Homebrew state to $BREWFILE"
+echo "brew-sync: dumping Homebrew state for $PROFILE to $BREWFILE"
 brew bundle dump --file="$BREWFILE" --force
 
 cd "$DOTFILES"

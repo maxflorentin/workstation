@@ -1,0 +1,32 @@
+# Brewfile.workstation: Minimal Mac operator tooling for the headless workstation
+# Usage: brew bundle --file=macos/Brewfile.workstation
+#
+# Keep this profile intentionally small. Client-specific tools should run inside
+# the intended workstation user unless a project explicitly needs Mac-local UI
+# tooling.
+
+# Core CLI
+brew "git"
+brew "neovim"
+brew "bat"
+brew "fzf"
+brew "ripgrep"
+brew "jq"
+brew "tree"
+brew "coreutils"
+brew "grep"
+brew "shellcheck"
+
+# Workstation access and encrypted config backup
+brew "age"
+brew "tailscale"
+
+# GitHub and package/runtime helpers for this repo
+brew "gh"
+brew "uv"
+brew "direnv"
+
+# Browser companion and optional X11 forwarding
+cask "google-chrome"
+cask "xquartz"
+cask "font-fira-code-nerd-font"
