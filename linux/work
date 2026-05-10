@@ -474,10 +474,14 @@ cmd_client_profile() {
     echo "  client:      $client"
     echo ""
 
-    _ssh_data "sudo CLIENT='$client' PI_USER='$PI_USER' bash -s" <<'REMOTE'
+    _ssh_data "CLIENT='$client' PI_USER='$PI_USER' bash -s" <<'REMOTE'
 set -e
 
 path="/home/$CLIENT/.clientrc"
+SUDO=""
+if sudo -n true >/dev/null 2>&1; then
+    SUDO="sudo -n"
+fi
 
 state() {
     case "${1:-}" in
@@ -489,7 +493,8 @@ state() {
 
 read_key() {
     local key="$1"
-    [ -f "$path" ] || return 0
+    local read_path="${CLIENTRC_READ_PATH:-$path}"
+    [ -f "$read_path" ] || return 0
     awk -F= -v key="$key" '
         $0 ~ "^[[:space:]]*(export[[:space:]]+)?" key "=" {
             value=$0
@@ -499,7 +504,7 @@ read_key() {
             print value
             exit
         }
-    ' "$path"
+    ' "$read_path"
 }
 
 if ! id "$CLIENT" >/dev/null 2>&1; then
@@ -509,10 +514,26 @@ fi
 
 echo "user: present"
 
-if [ -f "$path" ]; then
-    echo "clientrc: present"
+tmp=""
+if [ -n "$SUDO" ]; then
+    if $SUDO test -f "$path"; then
+        echo "clientrc: present"
+        tmp="$(mktemp)"
+        if ! $SUDO cat "$path" > "$tmp" 2>/dev/null; then
+            rm -f "$tmp"
+            tmp=""
+        fi
+    else
+        echo "clientrc: missing"
+    fi
 else
-    echo "clientrc: missing"
+    if [ -r "$path" ]; then
+        echo "clientrc: present"
+        tmp="$path"
+    else
+        echo "clientrc: unknown"
+        echo "scope: limited"
+    fi
 fi
 
 if id -nG "$CLIENT" | tr ' ' '\n' | grep -qx docker; then
@@ -521,16 +542,24 @@ else
     echo "docker: disabled"
 fi
 
-echo "browser_companion: $(state "$(read_key WORK_CONNECT_BROWSE)")"
-echo "secondary_tailscale_declared: $(state "$(read_key WORK_CLIENT_TAILSCALE_ENABLED)")"
-echo "compliance_declared: $(state "$(read_key WORK_CLIENT_COMPLIANCE_PROFILE)")"
+if [ -n "$tmp" ]; then
+    CLIENTRC_READ_PATH="$tmp"
+    echo "browser_companion: $(state "$(read_key WORK_CONNECT_BROWSE)")"
+    echo "secondary_tailscale_declared: $(state "$(read_key WORK_CLIENT_TAILSCALE_ENABLED)")"
+    echo "compliance_declared: $(state "$(read_key WORK_CLIENT_COMPLIANCE_PROFILE)")"
 
-backup_target="$(read_key WORK_CLIENT_CONFIG_BACKUP_TARGET)"
-backup_recipient="$(read_key WORK_CLIENT_CONFIG_BACKUP_RECIPIENT)"
-if [ -n "$backup_target" ] || [ -n "$backup_recipient" ]; then
-    echo "config_backup_declared: enabled"
+    backup_target="$(read_key WORK_CLIENT_CONFIG_BACKUP_TARGET)"
+    backup_recipient="$(read_key WORK_CLIENT_CONFIG_BACKUP_RECIPIENT)"
+    if [ -n "$backup_target" ] || [ -n "$backup_recipient" ]; then
+        echo "config_backup_declared: enabled"
+    else
+        echo "config_backup_declared: disabled"
+    fi
 else
-    echo "config_backup_declared: disabled"
+    echo "browser_companion: unknown"
+    echo "secondary_tailscale_declared: unknown"
+    echo "compliance_declared: unknown"
+    echo "config_backup_declared: unknown"
 fi
 
 if systemctl list-unit-files --no-legend "tailscaled-$CLIENT.service" 2>/dev/null | grep -q .; then
@@ -545,11 +574,13 @@ else
     echo "envy: missing"
 fi
 
-if [ -d "/home/.ecryptfs/$CLIENT" ] || findmnt -no FSTYPE "/home/$CLIENT" 2>/dev/null | grep -qx ecryptfs; then
+if [ -n "$SUDO" ] && { $SUDO test -d "/home/.ecryptfs/$CLIENT" || findmnt -no FSTYPE "/home/$CLIENT" 2>/dev/null | grep -qx ecryptfs; }; then
     echo "encrypted_home: present"
 else
     echo "encrypted_home: unknown"
 fi
+
+[ -z "$tmp" ] || [ "$tmp" = "$path" ] || rm -f "$tmp"
 REMOTE
 }
 
