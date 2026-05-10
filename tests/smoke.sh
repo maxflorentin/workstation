@@ -162,6 +162,16 @@ tracker_repair_limited="$(
 )"
 check_output_contains "work tracker-repair avoids sudo prompt" "$tracker_repair_limited" "tracker-repair requires sudo on the workstation"
 check_output_contains "work tracker-repair suggests sudo command" "$tracker_repair_limited" "sudo ~/.local/bin/work tracker-repair acme"
+user_create_limited="$(
+    PATH="$tmp_bin:$PATH" WORKSTATION_HOST=smoke-host WORKSTATION_USER=max "$ROOT/linux/work" user-create acme 2>&1 || true
+)"
+check_output_contains "work user-create avoids sudo prompt" "$user_create_limited" "user-create requires sudo on the workstation"
+check_output_contains "work user-create suggests sudo command" "$user_create_limited" "sudo ~/.local/bin/work user-create acme"
+clientrc_init_limited="$(
+    PATH="$tmp_bin:$PATH" WORKSTATION_HOST=smoke-host WORKSTATION_USER=max "$ROOT/linux/work" clientrc-init acme 2>&1 || true
+)"
+check_output_contains "work clientrc-init avoids sudo prompt" "$clientrc_init_limited" "clientrc-init requires sudo on the workstation"
+check_output_contains "work clientrc-init suggests sudo command" "$clientrc_init_limited" "sudo ~/.local/bin/work clientrc-init acme"
 rm -rf "$tmp_bin"
 
 report_missing_tracker="$(
