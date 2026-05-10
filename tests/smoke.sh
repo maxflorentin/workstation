@@ -182,6 +182,20 @@ clamav_setup_limited="$(
 )"
 check_output_contains "work clamav-setup avoids sudo prompt" "$clamav_setup_limited" "clamav-setup requires sudo on the workstation"
 check_output_contains "work clamav-setup suggests sudo command" "$clamav_setup_limited" "sudo ~/.local/bin/work clamav-setup"
+vpn_up_limited="$(
+    PATH="$tmp_bin:$PATH" WORKSTATION_HOST=smoke-host WORKSTATION_USER=max "$ROOT/linux/work" vpn-up acme 2>&1 || true
+)"
+check_output_contains "work vpn-up avoids sudo prompt" "$vpn_up_limited" "vpn-up is a legacy WireGuard command and requires sudo on the workstation"
+check_output_contains "work vpn-up points to tailscale" "$vpn_up_limited" "preferred: work tailscale-setup acme"
+vpn_down_limited="$(
+    PATH="$tmp_bin:$PATH" WORKSTATION_HOST=smoke-host WORKSTATION_USER=max "$ROOT/linux/work" vpn-down acme 2>&1 || true
+)"
+check_output_contains "work vpn-down avoids sudo prompt" "$vpn_down_limited" "vpn-down is a legacy WireGuard command and requires sudo on the workstation"
+destroy_limited="$(
+    printf 'yes\n' | PATH="$tmp_bin:$PATH" WORKSTATION_HOST=smoke-host WORKSTATION_USER=max "$ROOT/linux/work" destroy acme 2>&1 || true
+)"
+check_output_contains "work destroy avoids sudo prompt" "$destroy_limited" "destroy requires sudo on the workstation"
+check_output_contains "work destroy suggests sudo command" "$destroy_limited" "sudo ~/.local/bin/work destroy acme"
 rm -rf "$tmp_bin"
 
 report_missing_tracker="$(
