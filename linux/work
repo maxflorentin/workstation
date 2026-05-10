@@ -1483,7 +1483,7 @@ cmd_config_backup() {
     fi
 
     mkdir -p "$dest"
-    local dest_abs repo_abs client_dir workstation_dir tmp_dir generated_at
+    local dest_abs repo_abs client_dir workstation_dir tmp_dir generated_at manifest
     dest_abs="$(cd "$dest" && pwd -P)"
     repo_abs="$(cd "$(dirname "$0")/.." && pwd -P)"
 
@@ -1502,6 +1502,23 @@ cmd_config_backup() {
     tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/work-config-backup.XXXXXX")"
     trap 'rm -rf "$tmp_dir"' RETURN
     generated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+    manifest="$dest_abs/MANIFEST.tsv"
+    printf 'timestamp\tclient\tstatus\tpath\tlabel\n' > "$manifest"
+
+    _manifest_path() {
+        local path="$1"
+        case "$path" in
+            "$dest_abs"/*) printf '%s' "${path#"$dest_abs"/}" ;;
+            *) printf '%s' "$path" ;;
+        esac
+    }
+
+    _manifest_entry() {
+        local status="$1"
+        local path="$2"
+        local label="$3"
+        printf '%s\t%s\t%s\t%s\t%s\n' "$generated_at" "$client" "$status" "$(_manifest_path "$path")" "$label" >> "$manifest"
+    }
 
     _encrypt_file() {
         local src="$1"
@@ -1515,14 +1532,18 @@ cmd_config_backup() {
                 mv "$out_tmp" "$out"
                 chmod 600 "$out"
                 _ok "$label"
+                _manifest_entry "ok" "$out" "$label"
             else
                 rm -f "$out_tmp"
                 _fail "$label could not be encrypted"
+                _manifest_entry "failed" "$out" "$label"
             fi
         elif [ "$required" = "required" ]; then
             _fail "$label unreadable: $src"
+            _manifest_entry "failed" "$out" "$label"
         else
             _warn "$label skipped: $src unreadable or missing"
+            _manifest_entry "skipped" "$out" "$label"
         fi
     }
 
@@ -1540,14 +1561,18 @@ cmd_config_backup() {
                 mv "$out_tmp" "$out"
                 chmod 600 "$out"
                 _ok "$label"
+                _manifest_entry "ok" "$out" "$label"
             else
                 rm -f "$out_tmp"
                 _fail "$label could not be encrypted"
+                _manifest_entry "failed" "$out" "$label"
             fi
         elif [ "$required" = "required" ]; then
             _fail "$label could not be captured"
+            _manifest_entry "failed" "$out" "$label"
         else
             _warn "$label skipped: unavailable"
+            _manifest_entry "skipped" "$out" "$label"
         fi
     }
 
@@ -1623,6 +1648,8 @@ Restore outline:
 EOF
     chmod 600 "$dest_abs/README.restore.md"
     _ok "restore README updated"
+    chmod 600 "$manifest"
+    _ok "backup manifest updated"
 
     if [ -n "${SUDO_UID:-}" ] && [ -n "${SUDO_GID:-}" ]; then
         chown -R "$SUDO_UID:$SUDO_GID" "$dest_abs"

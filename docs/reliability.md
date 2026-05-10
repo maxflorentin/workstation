@@ -71,6 +71,9 @@ sudo ~/.local/bin/work config-backup <client> /path/to/private-config-backup 'ss
 The command refuses to write into this sanitized repo or into the client home.
 It writes encrypted `.age` files under `clients/<client>/` and `workstation/`,
 plus a small restore README in the private destination.
+It also writes a plaintext `MANIFEST.tsv` with generated file names, statuses,
+and labels. The manifest must not contain secrets; it is intended for quick
+audits before committing the encrypted backup repo.
 
 Expected inputs:
 
@@ -87,6 +90,7 @@ Use a private repository with encrypted files for small restore-critical config:
 ```text
 private-config-backup/
   README.restore.md
+  MANIFEST.tsv
   clients/
     <client>/
       clientrc.age
