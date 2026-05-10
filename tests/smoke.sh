@@ -100,6 +100,11 @@ check_output_contains "work onboard includes compliance boundary" "$onboard_outp
 tracker_repair_usage="$("$ROOT/linux/work" tracker-repair 2>&1)"
 check_output_contains "work tracker-repair requires client" "$tracker_repair_usage" "Usage: work tracker-repair <client|--all>"
 
+report_missing_tracker="$(
+    PATH="/usr/bin:/bin" "$ROOT/linux/work" report 2>&1 || true
+)"
+check_output_contains "work report explains missing local tracker" "$report_missing_tracker" "work report requires work-tracker"
+
 legacy_help="$("$ROOT/linux/work" legacy)"
 check_output_contains "work legacy documents vpn-up" "$legacy_help" "work vpn-up <client>"
 check_output_contains "work legacy points to tailscale" "$legacy_help" "work tailscale-setup <client>"

@@ -2225,6 +2225,12 @@ cmd_report() {
     local local_log="${XDG_DATA_HOME:-$HOME/.local/share}/work-tracker/log.tsv"
     local tmp_dir tmp sorted
 
+    if ! command -v work-tracker >/dev/null 2>&1; then
+        echo "work report requires work-tracker on the local machine" >&2
+        echo "run: ./install" >&2
+        exit 1
+    fi
+
     tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/work-report.XXXXXX")"
     tmp="$tmp_dir/merged.tsv"
     sorted="$tmp_dir/sorted.tsv"
@@ -2237,7 +2243,10 @@ cmd_report() {
 
     # Iterate client users on the workstation and pull each log (via admin sudo)
     local clients
-    clients=$(_list_clients)
+    clients=$(_list_clients || true)
+    if [ -z "$clients" ]; then
+        echo "warn no workstation clients found or workstation unreachable; local tracker report only" >&2
+    fi
     if [ -n "$clients" ]; then
         local can_sudo=0
         if _ssh_quiet "sudo -n true"; then
@@ -2535,13 +2544,17 @@ REMOTE
 
 cmd_tracker_status() {
     echo "=== Local (Mac) ==="
-    work-tracker status
+    if command -v work-tracker >/dev/null 2>&1; then
+        work-tracker status
+    else
+        echo "  (missing: run ./install)"
+    fi
     echo ""
 
     local clients
-    clients=$(_list_clients)
+    clients=$(_list_clients || true)
     if [ -z "$clients" ]; then
-        echo "(no client users on workstation)"
+        echo "(no client users on workstation or workstation unreachable)"
         return
     fi
 
