@@ -2,7 +2,7 @@
 
 Headless Linux development workstation for isolated freelance/client work.
 
-The current target is a Dell i5 class machine with 8GB RAM and local SSD
+The current target is a Dell i5 class machine with 32GB RAM and local SSD
 storage, running 24/7. The Raspberry Pi is no longer the primary development
 host; it can be repurposed later for media or homelab services.
 

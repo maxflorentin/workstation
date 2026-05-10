@@ -10,6 +10,10 @@ same isolation rules as the rest of the repo:
 
 ## Health Checks
 
+Current hardware baseline: Dell i5 class workstation, 32GB RAM, local SSD. The
+resource doctors use percentage-based thresholds so they remain useful after
+RAM/storage upgrades.
+
 From the Mac:
 
 ```bash
