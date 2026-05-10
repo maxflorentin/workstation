@@ -5,11 +5,11 @@ development host, but it is no longer the primary workstation target.
 
 Current source of truth:
 
-- [Workstation](workstation.md) - Dell/headless Linux workstation architecture
+- [Workstation](../workstation.md) - Dell/headless Linux workstation architecture
 - [Workstation Migration](workstation-migration.md) - applying the foundation to
   the current host
-- [Secondary Tailscale](tailscale-client.md) - client tailnet isolation
-- [Reliability](reliability.md) - health, backup, and recovery runbooks
+- [Secondary Tailscale](../tailscale-client.md) - client tailnet isolation
+- [Reliability](../reliability.md) - health, backup, and recovery runbooks
 
 ## What This Used To Be
 
@@ -49,7 +49,7 @@ These ideas survived the migration:
 - encrypted secrets through Envy;
 - configuration-only backups before broader data-backup work.
 
-Use the current commands from [workstation.md](workstation.md), especially:
+Use the current commands from [workstation.md](../workstation.md), especially:
 
 ```bash
 workstation ci

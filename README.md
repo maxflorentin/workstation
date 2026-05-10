@@ -32,10 +32,10 @@ workstation doctor
 ├── macos/               # Brewfile, fresh.sh, defaults, mackup
 ├── linux/               # Linux workstation scripts and compatibility entrypoints
 ├── editors/             # nvim, vscode, iterm2
-├── scripts/             # envy, gh-clone-org, brew-sync, etc.
+├── scripts/             # active helpers; old one-offs live in scripts/legacy
 ├── templates/           # Sanitized examples for client-local config
 ├── tests/               # Smoke tests and validation
-└── docs/                # workstation, tailscale-client, envy
+└── docs/                # current docs; historical notes live in docs/legacy
 ```
 
 ## What `./install` does
@@ -56,7 +56,7 @@ Safe to run multiple times.
 | `work` | Manage client workspaces on the Linux workstation |
 | `envy-*` | Age-encrypted secret management |
 | `brew-sync --profile <name>` | Dump one Homebrew profile; commit/push only with explicit flags |
-| `gh-clone-org` | Clone all repos from a GitHub org |
+| `work-tracker` | Local/client work session tracking |
 
 ## Validation
 
@@ -74,7 +74,6 @@ work connect --browse <client> # tmux workspace + isolated Chrome profile
 ## Docs
 
 - [Workstation](docs/workstation.md) - headless Linux workstation architecture
-- [Workstation Migration](docs/workstation-migration.md) - applying this foundation to the Dell
 - [Development Workflow](docs/dev-workflow.md) - Mac, workstation, browser, Docker, and mobile flow
 - [Client Boundaries](docs/client-boundaries.md) - what belongs in git vs host-local client config
 - [Secondary Tailscale](docs/tailscale-client.md) - client tailnet isolation
@@ -83,4 +82,4 @@ work connect --browse <client> # tmux workspace + isolated Chrome profile
 - [Reliability](docs/reliability.md) - health, backup, and recovery runbooks
 - [Progress](docs/progress.md) - current foundation checkpoint and next steps
 - [Spikes](docs/spikes.md) - deferred ideas and open questions
-- [Legacy Pi](docs/pi-workstation.md) - archived notes from the earlier Raspberry Pi model
+- [Legacy Docs](docs/legacy/README.md) - archived Pi and migration notes

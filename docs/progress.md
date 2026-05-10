@@ -25,6 +25,8 @@ from personal dotfiles to a reliable, sanitized workstation repo.
 - Config-only backups include manifest checksums and schema validation.
 - Backups are explicitly separated from data-backup spikes.
 - Legacy WireGuard paths are hidden under `work legacy`.
+- Legacy docs and one-off helper scripts are archived under `docs/legacy/` and
+  `scripts/legacy/` instead of being deleted.
 - Old experimental assistant commands were removed.
 - Homebrew sync is profile-based and non-magical by default.
 - Mac package baselines are split between personal, corporate, and workstation

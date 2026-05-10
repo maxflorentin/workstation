@@ -238,4 +238,4 @@ tools such as `shellcheck`.
 - Do not give client users sudo.
 - Do not add client users to privileged groups by default.
 - Do not use the old Raspberry Pi workflow as the current operating model; see
-  [pi-workstation.md](pi-workstation.md) for historical notes.
+  [legacy/pi-workstation.md](legacy/pi-workstation.md) for historical notes.
