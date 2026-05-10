@@ -530,8 +530,13 @@ cmd_clients() {
     echo "  workstation: $PI_USER@$PI_HOST"
     echo ""
 
-    _ssh_data "sudo PI_USER='$PI_USER' bash -s" <<'REMOTE'
+    _ssh_data "PI_USER='$PI_USER' bash -s" <<'REMOTE'
 set -e
+
+SUDO=""
+if sudo -n true >/dev/null 2>&1; then
+    SUDO="sudo -n"
+fi
 
 state() {
     case "${1:-}" in
@@ -564,6 +569,11 @@ if [ -z "$clients" ]; then
     exit 0
 fi
 
+if [ -z "$SUDO" ]; then
+    echo "info privileged checks limited; run on workstation with sudo for full state"
+    echo ""
+fi
+
 printf '%-18s %-8s %-6s %-8s %-10s %-10s %-10s %-10s\n' \
     "client" "clientrc" "docker" "browser" "tailscale" "compliance" "backup" "encrypted"
 
@@ -571,10 +581,20 @@ while IFS= read -r client; do
     [ -z "$client" ] && continue
     path="/home/$client/.clientrc"
 
-    if [ -f "$path" ]; then
+    if [ -n "$SUDO" ]; then
+        test_file_cmd="$SUDO test -f '$path'"
+    else
+        test_file_cmd="test -f '$path'"
+    fi
+
+    if bash -lc "$test_file_cmd"; then
         clientrc="yes"
     else
-        clientrc="no"
+        if [ -z "$SUDO" ]; then
+            clientrc="unknown"
+        else
+            clientrc="no"
+        fi
     fi
 
     if id -nG "$client" | tr ' ' '\n' | grep -qx docker; then
@@ -583,19 +603,34 @@ while IFS= read -r client; do
         docker="no"
     fi
 
-    browser="$(state "$(read_key "$path" WORK_CONNECT_BROWSE)")"
-    tailscale="$(state "$(read_key "$path" WORK_CLIENT_TAILSCALE_ENABLED)")"
-    compliance="$(state "$(read_key "$path" WORK_CLIENT_COMPLIANCE_PROFILE)")"
-
-    backup_target="$(read_key "$path" WORK_CLIENT_CONFIG_BACKUP_TARGET)"
-    backup_recipient="$(read_key "$path" WORK_CLIENT_CONFIG_BACKUP_RECIPIENT)"
-    if [ -n "$backup_target" ] || [ -n "$backup_recipient" ]; then
-        backup="on"
+    if [ -n "$SUDO" ]; then
+        tmp="$(mktemp)"
+        if $SUDO cat "$path" > "$tmp" 2>/dev/null; then
+            browser="$(state "$(read_key "$tmp" WORK_CONNECT_BROWSE)")"
+            tailscale="$(state "$(read_key "$tmp" WORK_CLIENT_TAILSCALE_ENABLED)")"
+            compliance="$(state "$(read_key "$tmp" WORK_CLIENT_COMPLIANCE_PROFILE)")"
+            backup_target="$(read_key "$tmp" WORK_CLIENT_CONFIG_BACKUP_TARGET)"
+            backup_recipient="$(read_key "$tmp" WORK_CLIENT_CONFIG_BACKUP_RECIPIENT)"
+            if [ -n "$backup_target" ] || [ -n "$backup_recipient" ]; then
+                backup="on"
+            else
+                backup="off"
+            fi
+        else
+            browser="unknown"
+            tailscale="unknown"
+            compliance="unknown"
+            backup="unknown"
+        fi
+        rm -f "$tmp"
     else
-        backup="off"
+        browser="unknown"
+        tailscale="unknown"
+        compliance="unknown"
+        backup="unknown"
     fi
 
-    if [ -d "/home/.ecryptfs/$client" ] || findmnt -no FSTYPE "/home/$client" 2>/dev/null | grep -qx ecryptfs; then
+    if [ -n "$SUDO" ] && { $SUDO test -d "/home/.ecryptfs/$client" || findmnt -no FSTYPE "/home/$client" 2>/dev/null | grep -qx ecryptfs; }; then
         encrypted="yes"
     else
         encrypted="unknown"
