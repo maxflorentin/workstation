@@ -148,11 +148,29 @@ cmd_connect() {
         tracker_log=\"\$tracker_dir/log.tsv\"
         mkdir -p \"\$tracker_dir\"
         [ -f \"\$tracker_log\" ] || printf 'timestamp\tevent\tclient\tproject\tsource\n' > \"\$tracker_log\"
-        printf '%s\tstart\t%s\t%s\t%s\n' \"\$(date +%s)\" $q_client $q_project $q_source >> \"\$tracker_log\"
 
         if [ ! -x \"\$HOME/.local/bin/work-tracker\" ] && [ -x \"\$HOME/.dotfiles/install\" ]; then
             (cd \"\$HOME/.dotfiles\" && ./install >/dev/null 2>&1) || true
         fi
+
+        tracker_fallback_event() {
+            event=\"\$1\"
+            clean_client=\"\$(printf '%s' \"\$2\" | tr '\t\r\n' '   ')\"
+            clean_project=\"\$(printf '%s' \"\$3\" | tr '\t\r\n' '   ')\"
+            clean_source=\"\$(printf '%s' \"\$4\" | tr '\t\r\n' '   ')\"
+            printf '%s\t%s\t%s\t%s\t%s\n' \"\$(date +%s)\" \"\$event\" \"\$clean_client\" \"\$clean_project\" \"\$clean_source\" >> \"\$tracker_log\"
+        }
+
+        tracker_event() {
+            event=\"\$1\"
+            if [ -x \"\$HOME/.local/bin/work-tracker\" ]; then
+                WORK_TRACKER_SOURCE=$q_source \"\$HOME/.local/bin/work-tracker\" \"\$event\" $q_client $q_project $q_source || true
+            else
+                tracker_fallback_event \"\$event\" $q_client $q_project $q_source
+            fi
+        }
+
+        tracker_event start
         if [ -x \"\$HOME/.local/bin/work-tracker\" ]; then
             WORK_TRACKER_SOURCE=$q_source \"\$HOME/.local/bin/work-tracker\" pulse || true
         fi
@@ -161,7 +179,7 @@ cmd_connect() {
         if [ -x \"\$HOME/.local/bin/work-tracker\" ]; then
             WORK_TRACKER_SOURCE=$q_source \"\$HOME/.local/bin/work-tracker\" pulse || true
         fi
-        printf '%s\tstop\t%s\t%s\t%s\n' \"\$(date +%s)\" $q_client $q_project $q_source >> \"\$tracker_log\"
+        tracker_event stop
         exit \$rc
     "
 
