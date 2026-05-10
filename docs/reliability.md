@@ -52,6 +52,10 @@ Optional target check:
 WORK_BACKUP_TARGET=/path/to/backup-root work backup-doctor
 ```
 
+When `WORK_BACKUP_TARGET` is set, the doctor checks the expected private backup
+repo structure: `README.restore.md`, `MANIFEST.tsv`, `clients/`, and
+`workstation/`.
+
 ## Encrypted Config Backup
 
 `work config-backup` creates an encrypted, config-only snapshot for one client.

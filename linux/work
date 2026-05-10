@@ -1407,6 +1407,26 @@ cmd_backup_doctor() {
     if [ -n "${WORK_BACKUP_TARGET:-}" ]; then
         if _ssh_quiet "test -d '$WORK_BACKUP_TARGET'"; then
             _ok "WORK_BACKUP_TARGET exists"
+            if _ssh_quiet "test -f '$WORK_BACKUP_TARGET/README.restore.md'"; then
+                _ok "backup restore README present"
+            else
+                _warn "backup restore README missing"
+            fi
+            if _ssh_quiet "test -f '$WORK_BACKUP_TARGET/MANIFEST.tsv'"; then
+                _ok "backup manifest present"
+            else
+                _warn "backup manifest missing"
+            fi
+            if _ssh_quiet "test -d '$WORK_BACKUP_TARGET/clients'"; then
+                _ok "backup clients directory present"
+            else
+                _warn "backup clients directory missing"
+            fi
+            if _ssh_quiet "test -d '$WORK_BACKUP_TARGET/workstation'"; then
+                _ok "backup workstation directory present"
+            else
+                _warn "backup workstation directory missing"
+            fi
         else
             _warn "WORK_BACKUP_TARGET not found on workstation"
         fi
