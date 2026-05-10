@@ -298,8 +298,27 @@ cmd_clientrc_init() {
 
     _validate_client_name "$client"
 
-    _ssh_data "sudo CLIENT='$client' FORCE='$force' PI_USER='$PI_USER' bash -s" <<'REMOTE'
+    _ssh_data "CLIENT='$client' FORCE='$force' PI_USER='$PI_USER' bash -s" <<'REMOTE'
 set -e
+
+SUDO=""
+if [ "$(id -u)" -eq 0 ]; then
+    SUDO=""
+elif sudo -n true >/dev/null 2>&1; then
+    SUDO="sudo -n"
+else
+    echo "clientrc-init requires sudo on the workstation" >&2
+    echo "run: ssh $PI_USER@$(hostname -s) 'sudo ~/.local/bin/work clientrc-init $CLIENT'" >&2
+    exit 1
+fi
+
+run_root() {
+    if [ -n "$SUDO" ]; then
+        $SUDO "$@"
+    else
+        "$@"
+    fi
+}
 
 if ! id "$CLIENT" >/dev/null 2>&1; then
     echo "client user does not exist: $CLIENT" >&2
@@ -307,7 +326,7 @@ if ! id "$CLIENT" >/dev/null 2>&1; then
 fi
 
 dest="/home/$CLIENT/.clientrc"
-if [ -f "$dest" ] && [ "$FORCE" != "1" ]; then
+if run_root test -f "$dest" && [ "$FORCE" != "1" ]; then
     echo "  .clientrc already exists (use --force to replace)"
     exit 0
 fi
@@ -317,7 +336,7 @@ for candidate in \
     "/home/$PI_USER/.dotfiles/templates/clientrc.example" \
     "/home/$CLIENT/.dotfiles/templates/clientrc.example"
 do
-    if [ -f "$candidate" ]; then
+    if run_root test -f "$candidate"; then
         template="$candidate"
         break
     fi
@@ -329,8 +348,8 @@ if [ -z "$template" ]; then
 fi
 
 tmp="$(mktemp)"
-sed "s/<client>/$CLIENT/g" "$template" > "$tmp"
-install -o "$CLIENT" -g "$CLIENT" -m 600 "$tmp" "$dest"
+run_root cat "$template" | sed "s/<client>/$CLIENT/g" > "$tmp"
+run_root install -o "$CLIENT" -g "$CLIENT" -m 600 "$tmp" "$dest"
 rm -f "$tmp"
 echo "  .clientrc installed from template"
 REMOTE
