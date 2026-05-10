@@ -360,10 +360,14 @@ cmd_clientrc_doctor() {
     echo ""
 
     local result
-    result=$(_ssh_data "sudo CLIENT='$client' bash -s" <<'REMOTE'
+    result=$(_ssh_data "CLIENT='$client' bash -s" <<'REMOTE'
 set -e
 
 path="/home/$CLIENT/.clientrc"
+SUDO=""
+if sudo -n true >/dev/null 2>&1; then
+    SUDO="sudo -n"
+fi
 
 if ! id "$CLIENT" >/dev/null 2>&1; then
     echo "FAIL client user does not exist"
@@ -371,14 +375,26 @@ if ! id "$CLIENT" >/dev/null 2>&1; then
 fi
 echo "OK client user exists"
 
-if [ ! -f "$path" ]; then
-    echo "FAIL .clientrc missing"
-    exit 0
+if [ -n "$SUDO" ]; then
+    if ! $SUDO test -f "$path"; then
+        echo "FAIL .clientrc missing"
+        exit 0
+    fi
+else
+    if [ ! -r "$path" ]; then
+        echo "WARN privileged checks limited; run on workstation with sudo for full .clientrc validation"
+        exit 0
+    fi
 fi
 echo "OK .clientrc exists"
 
-owner="$(stat -c '%U:%G' "$path" 2>/dev/null || true)"
-mode="$(stat -c '%a' "$path" 2>/dev/null || true)"
+if [ -n "$SUDO" ]; then
+    owner="$($SUDO stat -c '%U:%G' "$path" 2>/dev/null || true)"
+    mode="$($SUDO stat -c '%a' "$path" 2>/dev/null || true)"
+else
+    owner="$(stat -c '%U:%G' "$path" 2>/dev/null || true)"
+    mode="$(stat -c '%a' "$path" 2>/dev/null || true)"
+fi
 
 if [ "$owner" = "$CLIENT:$CLIENT" ]; then
     echo "OK .clientrc owner is client"
@@ -392,19 +408,33 @@ else
     echo "WARN .clientrc mode is ${mode:-unknown}, expected 600"
 fi
 
+tmp=""
+if [ -n "$SUDO" ]; then
+    tmp="$(mktemp)"
+    if ! $SUDO cat "$path" > "$tmp" 2>/dev/null; then
+        rm -f "$tmp"
+        echo "WARN .clientrc unreadable for key validation"
+        exit 0
+    fi
+else
+    tmp="$path"
+fi
+
 for key in WORK_CLIENT_LABEL WORK_CONNECT_BROWSE WORK_CLIENT_TAILSCALE_ENABLED WORK_CLIENT_COMPLIANCE_PROFILE; do
-    if grep -Eq "^[[:space:]]*(export[[:space:]]+)?$key=" "$path"; then
+    if grep -Eq "^[[:space:]]*(export[[:space:]]+)?$key=" "$tmp"; then
         echo "OK key present: $key"
     else
         echo "WARN key missing: $key"
     fi
 done
 
-if grep -q '<client>' "$path"; then
+if grep -q '<client>' "$tmp"; then
     echo "WARN placeholder remains in .clientrc"
 else
     echo "OK no <client> placeholder remains"
 fi
+
+[ "$tmp" = "$path" ] || rm -f "$tmp"
 REMOTE
 )
 
