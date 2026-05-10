@@ -1,17 +1,18 @@
 #!/bin/bash
 
-# bootstrap: Set up Linux dev server (ARM64 or x86_64)
+# bootstrap: Set up a headless Linux workstation (ARM64 or x86_64)
 # Run ON the target machine after fresh OS install
 # Usage: curl -sL <raw-url> | bash  OR  scp + run locally
 
 set -e
 
-echo "=== Linux Dev Server Bootstrap ==="
+echo "=== Linux Workstation Bootstrap ==="
 echo ""
 
 ARCH="$(uname -m)"
+DEFAULT_DOTFILES_REPO="https://github.com/maxflorentin/workstation.git"
 DOTFILES_DIR="$HOME/.dotfiles"
-DOTFILES_REPO="https://github.com/maxflorentin/dotfiles-mbairm4.git"
+DOTFILES_REPO="${WORKSTATION_DOTFILES_REPO:-${WORK_DOTFILES_REPO:-$DEFAULT_DOTFILES_REPO}}"
 
 # --- Locale ---
 echo "[1/10] Configuring locale..."
@@ -30,12 +31,11 @@ sudo apt-get install -y -qq \
     build-essential cmake \
     tmux htop \
     openssh-server \
-    wireguard openresolv \
     age \
     jq ripgrep fd-find bat fzf eza autojump \
     zsh zsh-syntax-highlighting \
     lsof ecryptfs-utils \
-    fastfetch
+    fastfetch shellcheck lm-sensors
 
 # --- Docker ---
 echo "[4/10] Installing Docker..."
@@ -121,9 +121,6 @@ if [ "$SHELL" != "$(which zsh)" ]; then
     chsh -s "$(which zsh)"
 fi
 
-# Create clients directory
-mkdir -p "$HOME/clients"
-
 # --- ecryptfs SSH fix ---
 # When home is encrypted, authorized_keys must live outside ~/
 if dpkg -l ecryptfs-utils 2>/dev/null | grep -q '^ii'; then
@@ -145,10 +142,9 @@ echo "=== Bootstrap complete ==="
 echo ""
 echo "Next steps:"
 echo "  1. Log out and back in (or: exec zsh)"
-echo "  2. Initialize envy: envy-init && envy-new work"
-echo "  3. Encrypt home (optional): ecryptfs-migrate-home -u $USER"
-echo "  4. Configure DNS (optional): sudo nano /etc/dnsmasq.d/nextdns.conf"
-echo "  5. From your Mac: work connect"
+echo "  2. Authenticate Tailscale: sudo tailscale up"
+echo "  3. Run validation: workstation doctor && work doctor && work vpn-doctor"
+echo "  4. Create client users from the Mac: work user-create <client>"
+echo "  5. For compliance-profile clients: sudo ~/.local/bin/work compliance-doctor <client>"
 echo ""
 echo "Dotfiles: ~/.dotfiles/"
-echo "Clients:  ~/clients/"

@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Compatibility wrapper for the tmux workspace layout.
+
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$ROOT/linux/tmux-layout" "$@"

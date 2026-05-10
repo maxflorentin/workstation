@@ -1,276 +1,160 @@
 # Remote Access
 
-How to reach the Pi workstation (or future mini PC) from anywhere — iPhone, Mac, coffee shop, whatever.
+How to reach the headless Linux workstation from the Mac, phone, or another
+trusted device.
 
-## Network Topology
+Tailscale is the default remote-access path. The workstation may sit behind one
+or more NAT layers, so inbound port forwarding should be treated as an
+exception rather than the normal setup.
 
-```
-Internet
-  │
-  ▼
-┌─────────────────────────────┐
-│ ISP Modem (Movistar)        │
-│ 192.168.1.1                 │
-│ NAT #1                      │
-└──────────┬──────────────────┘
-           │ 192.168.1.49
-           ▼
-┌─────────────────────────────┐
-│ Mesh Router (TP-Link Deco)  │
-│ 192.168.68.1                │
-│ NAT #2                      │
-└──────────┬──────────────────┘
-           │ 192.168.68.55
-           ▼
-┌─────────────────────────────┐
-│ Pi / Server                 │
-│ Tailscale: 100.102.172.111   │
-└─────────────────────────────┘
+## Network Model
+
+```text
+Mac / phone / trusted device
+  - personal Tailscale node
+  - SSH client
+        |
+        | SSH over Tailscale
+        v
+Linux workstation
+  - personal tailscaled
+  - admin user: max
+  - client users: /home/<client>
+  - optional secondary tailscaled-<client> daemons
 ```
 
-**Double NAT**: the ISP modem does NAT, then the Deco does NAT again. Inbound port forwarding requires rules on **both** devices. This is why Tailscale is the recommended path — it punches through NAT without any port forwarding.
+Keep local ISP names, router models, LAN IPs, and tailnet IPs out of this repo.
+Those details belong in host-local notes or private encrypted config backups.
 
----
+## Tailscale
 
-## Option A: Tailscale (recommended)
-
-Zero config, zero port forwarding, works through any NAT. Free tier supports 100 devices.
-
-Tailscale creates a WireGuard mesh where each device gets a stable `100.x.x.x` IP. A coordination server (hosted by Tailscale) handles key exchange — your traffic goes peer-to-peer, not through their servers.
-
-### Server setup
+Install and authenticate Tailscale on the workstation:
 
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
-# Follow the auth URL — login with macsee13@gmail.com
 ```
 
-After auth:
+Verify on the workstation:
 
 ```bash
-tailscale status          # shows all peers
-tailscale ip -4           # shows this node's Tailscale IP
-```
-
-### Mac setup
-
-```bash
-brew install --cask tailscale
-# Open Tailscale from menu bar → login with same account
-```
-
-Or headless:
-
-```bash
-brew install tailscale
-sudo tailscale up
-```
-
-### iPhone setup
-
-1. App Store → install **Tailscale**
-2. Open → login with **macsee13@gmail.com**
-3. Toggle VPN on
-
-### Troubleshooting
-
-**Nodekey conflict (iPhone shows "device already registered")**
-
-This happens when the app's local keys get out of sync with the coordination server. Fix:
-
-1. On iPhone: **delete** the Tailscale app entirely
-2. Reinstall from App Store
-3. Login with macsee13@gmail.com
-4. On the Pi, verify the iPhone appears:
-   ```bash
-   tailscale status
-   ```
-
-**Node not appearing**
-
-```bash
-# On the server — force re-authentication:
-sudo tailscale logout
-sudo tailscale up
-```
-
-**Check connectivity**
-
-```bash
-# From Mac or server:
-tailscale ping <hostname>
 tailscale status
+tailscale ip -4
+systemctl is-active tailscaled
 ```
 
----
-
-## Option B: WireGuard (self-hosted)
-
-Use this if you want zero dependency on external coordination servers. Requires port forwarding through both NAT layers.
-
-### Port forwarding (double NAT)
-
-You need rules on **both** routers:
-
-1. **Movistar modem** (192.168.1.1):
-   - Protocol: UDP
-   - External port: 51820
-   - Forward to: 192.168.1.49 (Deco's WAN IP), port 51820
-
-2. **Deco router** (192.168.68.1):
-   - Protocol: UDP
-   - External port: 51820
-   - Forward to: 192.168.68.55 (server), port 51820
-
-### Server config
+On the Mac, install Tailscale from the app or Homebrew, log into the same
+personal tailnet, and verify:
 
 ```bash
-sudo apt install -y wireguard
-
-# Generate keys
-wg genkey | sudo tee /etc/wireguard/private.key
-sudo chmod 600 /etc/wireguard/private.key
-sudo cat /etc/wireguard/private.key | wg pubkey | sudo tee /etc/wireguard/public.key
+tailscale status
+tailscale ping workstation
+ssh workstation
 ```
 
-`/etc/wireguard/wg0.conf`:
-
-```ini
-[Interface]
-Address = 10.0.0.1/24
-ListenPort = 51820
-PrivateKey = <server-private-key>
-PostUp = iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-PostDown = iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
-
-[Peer]
-# Mac
-PublicKey = <mac-public-key>
-AllowedIPs = 10.0.0.2/32
-
-[Peer]
-# iPhone
-PublicKey = <iphone-public-key>
-AllowedIPs = 10.0.0.3/32
-```
-
-```bash
-sudo systemctl enable --now wg-quick@wg0
-```
-
-### Mac client
-
-```bash
-brew install wireguard-tools
-```
-
-Create `~/.config/wireguard/wg0.conf` (or use the macOS WireGuard app):
-
-```ini
-[Interface]
-Address = 10.0.0.2/24
-PrivateKey = <mac-private-key>
-
-[Peer]
-PublicKey = <server-public-key>
-Endpoint = <your-public-ip>:51820
-AllowedIPs = 10.0.0.0/24
-PersistentKeepalive = 25
-```
-
-### iPhone client
-
-1. App Store → **WireGuard**
-2. Add tunnel → Create from scratch (or scan QR)
-3. Same config as Mac but with `Address = 10.0.0.3/24` and iPhone's private key
-
-### Dynamic DNS
-
-If your ISP changes your public IP, WireGuard clients can't find the server. Options:
-
-- **DuckDNS** (free): set up a cron on the server to update `max-home.duckdns.org`
-- **Cloudflare DDNS**: if you own a domain, use a script to update an A record
-- **Tailscale**: avoids this problem entirely (another reason to prefer Option A)
-
----
+On iPhone or another mobile device, install Tailscale, log into the same
+personal tailnet, enable the VPN toggle, and connect with an SSH app.
 
 ## SSH Profiles
 
-### Mac (`~/.ssh/config.d/workstation`)
+Use MagicDNS or a host-local Tailscale IP in `~/.ssh/config`. Keep real IPs out
+of git.
 
-All hosts use the Tailscale IP so they work both on LAN and remotely:
-
-```
+```sshconfig
 Host workstation
-    HostName 100.102.172.111
+    HostName workstation
     User max
+```
 
+Define one explicit host-local entry per client. Avoid committing real client
+names to this repo.
+
+```sshconfig
 Host ws-<client>
-    HostName 100.102.172.111
+    HostName workstation
     User <client>
-    # Add LocalForward as needed per client (ports in ~/.clientrc)
-
-# For ecryptfs clients, add:
-#   PreferredAuthentications password
-#   PubkeyAuthentication no
-
-# Emergency LAN fallback
-Host ws-lan
-    HostName 192.168.68.55
-    User max
 ```
 
-### iPhone (WebSSH / Blink Shell)
+For encrypted-home clients, first login may require password authentication so
+the home can mount:
 
-Create one profile per client user:
-
-| Profile | Host | User | Auth |
-|---------|------|------|------|
-| workstation | 100.102.172.111 | max | SSH key |
-| ws-&lt;client&gt; | 100.102.172.111 | &lt;client&gt; | SSH key (or password if ecryptfs) |
-
-Tailscale must be active (VPN toggle on) before connecting.
-
-### ecryptfs clients (password auth)
-
-Clients with encrypted homes need password auth on first login so ecryptfs can mount. This is handled server-side in `/etc/ssh/sshd_config`:
-
-```
-Match User <client>
-    AuthenticationMethods password
-    PasswordAuthentication yes
+```sshconfig
+Host ws-<client>
+    HostName workstation
+    User <client>
+    PreferredAuthentications password
+    PubkeyAuthentication no
 ```
 
-After the first SSH login decrypts the home, key-based auth also works (keys are in `/etc/ssh/authorized_keys/%u`). Client names configured in sshd_config live on the server, not in this repo.
+The matching server-side SSH configuration lives on the workstation, not in this
+repo.
 
----
+## Verification
 
-## Verification Checklist
-
-Run these after setup or when troubleshooting:
+Run these after setup or while troubleshooting:
 
 ```bash
-# 1. Tailscale mesh is connected
-tailscale ping workstation        # from Mac
-tailscale status                     # from any node
-
-# 2. SSH works via Tailscale IP
-ssh workstation                   # key auth, admin user
-ssh ws-<client>                      # per-client host from ~/.ssh/config.d/
-
-# 3. From iPhone
-# Tailscale VPN on → open terminal app → ssh max@100.102.172.111
-
-# 4. LAN fallback (only if on same network)
-ssh ws-lan
+work doctor
+work vpn-doctor
+work doctor <client>
+work vpn-doctor <client>
 ```
 
----
+Use `work vpn-doctor` for the personal Mac/workstation path. Use
+`work vpn-doctor <client>` when the client should have a secondary Tailscale
+instance; that path validates the client daemon, socket, wrapper, routing guard,
+and client-user status.
 
-## Migration to New Hardware
+Direct checks:
 
-1. Install Tailscale on the new machine, auth with the same account
-2. The new machine gets a **new** Tailscale IP — update SSH configs
-3. Optionally remove the old node: `tailscale logout` on old machine, or remove from [Tailscale admin](https://login.tailscale.com/admin/machines)
-4. WireGuard (if used): copy `/etc/wireguard/` configs, update port forwarding rules to new server's LAN IP
+```bash
+tailscale status
+tailscale ping workstation
+ssh workstation
+ssh <client>@workstation
+```
+
+For client-specific tailnets, use:
+
+```bash
+work tailscale-setup <client>
+work vpn-doctor <client>
+```
+
+The secondary Tailscale daemon must use userspace networking and must not accept
+routes. See [tailscale-client.md](tailscale-client.md).
+
+## Troubleshooting
+
+If the workstation is not reachable:
+
+1. Check the workstation is powered on and reachable on the local network.
+2. Check `tailscaled` is active on the workstation.
+3. Check the Mac or phone is logged into the personal tailnet.
+4. Run `tailscale status` on both sides.
+5. Run `tailscale ping workstation` from the client device.
+6. Use LAN SSH only as a temporary local fallback.
+
+If a mobile device appears duplicated or stale in Tailscale, remove the stale
+node from the Tailscale admin console or fully reinstall the mobile app, then
+authenticate again.
+
+## WireGuard
+
+Raw WireGuard is no longer the primary remote-access model for this repo.
+
+Use it only for a deliberate self-hosted VPN setup with a separate runbook.
+Do not commit public IPs, router details, forwarded ports, or private keys.
+
+For client-specific network access, prefer the secondary Tailscale model
+documented in [tailscale-client.md](tailscale-client.md).
+
+## Hardware Migration
+
+When replacing the workstation:
+
+1. Install Tailscale on the new machine.
+2. Authenticate it into the personal tailnet.
+3. Update host-local SSH config if MagicDNS is not enough.
+4. Run `workstation doctor`, `work doctor`, and `work vpn-doctor`.
+5. Remove or disable the old tailnet node when the migration is complete.

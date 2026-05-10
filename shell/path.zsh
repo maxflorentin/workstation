@@ -23,4 +23,6 @@ add_to_path "${ANTIGRAVITY_BIN:-$HOME/.antigravity/antigravity/bin}"
 
 # fnm (Node version manager)
 add_to_path "$HOME/.local/share/fnm"
-command -v fnm &>/dev/null && eval "$(fnm env)"
+if command -v fnm &>/dev/null && fnm --version &>/dev/null; then
+  eval "$(fnm env)"
+fi

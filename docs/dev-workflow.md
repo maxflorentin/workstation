@@ -1,222 +1,241 @@
 # Development Workflow
 
-How to split work between Mac and Pi for the best experience across devices (Mac, iPhone, coffee shop).
+How to split work between the Mac, the headless Linux workstation, and mobile
+access without leaking client state across users.
 
 ## Architecture
 
-```
-iPhone (Tailscale)
-  │
-  │ SSH
-  ▼
-Pi workstation (100.88.210.35)          Mac (Tailscale IP)
-┌──────────────────────┐                ┌──────────────────────┐
-│ - Code editing       │                │ - Docker Desktop     │
-│ - Claude Code (CLI)  │  ◄─Tailscale─► │   ├── postgres       │
-│ - Git operations     │                │   ├── minio           │
-│ - Scripts / cron     │   containers   │   ├── hive            │
-│ - SSH gateway        │ ◄──via ports── │   └── app-dev         │
-│ - Client isolation   │                │ - VSCode (local)     │
-└──────────────────────┘                │ - Claude Code (CLI)  │
-                                        └──────────────────────┘
-```
-
-**Pi** = always-on gateway, code, git, client isolation, light tools.
-**Mac** = heavy lifting (Docker, builds, VSCode, Claude Code).
-**iPhone** = SSH to Pi via Tailscale for quick fixes.
-
----
-
-## From the Mac
-
-### Option 1: VSCode + Remote SSH (for editing on Pi)
-
-Connect via `ws-<client>-vscode` (after mounting ecryptfs).
-
-**Workflow:**
-1. Terminal: `ssh ws-<client>` → enter password (mounts ecryptfs home)
-2. VSCode: Remote Explorer → `ws-<client>-vscode` → connects with key auth
-
-**Recommended VSCode settings** (remote, to reduce Pi resource usage):
-
-```json
-{
-  "remote.SSH.connectTimeout": 60,
-  "remote.SSH.keepalive": 30,
-  "files.watcherExclude": {
-    "**/node_modules/**": true,
-    "**/.git/objects/**": true,
-    "**/.venv/**": true,
-    "**/repos/*/data/**": true,
-    "**/.minio/**": true
-  },
-  "typescript.disableAutomaticTypeAcquisition": true
-}
+```text
+Mac
+  - terminal, browser, editor
+  - personal Tailscale node
+  - local `work` launcher
+        |
+        | SSH over Tailscale
+        v
+Linux workstation
+  - admin user: max
+  - client users: /home/<client>
+  - tmux sessions
+  - git, Docker, language runtimes
+  - personal tailscaled
+  - optional secondary tailscaled-<client>
+        ^
+        |
+        | SSH over Tailscale
+Phone / tablet
+  - emergency terminal access
 ```
 
-**Disable on remote** (saves ~300MB RAM on Pi):
-- `@builtin TypeScript and JavaScript Language Features`
-- Any extension you don't actively need on the Pi
+The Mac is the operator machine. The workstation owns long-running state,
+client separation, Docker workloads, and tmux sessions. Mobile access is for
+small interventions and status checks, not deep editing.
 
-**Resource impact on Pi 4 (4GB):**
-- vscode-server: ~1-1.5GB RAM
-- Known memory leak in fileWatcher — kill orphans periodically:
-  ```bash
-  pkill -f vscode-server
-  ```
-- Leaves ~2.5GB for everything else (tight if running containers too)
-
-### Option 2: VSCode local + Docker on Mac (for heavy work)
-
-Edit locally on the Mac. Run containers locally. No Pi involved.
-
-Best for: Spark jobs, heavy builds, anything needing >2GB RAM for containers.
-
-### Option 3: Claude Code on Mac (CLI)
+Use Homebrew profiles deliberately:
 
 ```bash
-claude                    # interactive mode
-claude -p "your prompt"   # one-shot / scripting
+brew bundle --file macos/Brewfile              # personal Mac
+brew bundle --file macos/Brewfile.corporate   # managed/corporate Mac
+brew bundle --file macos/Brewfile.workstation # minimal Dell operator tooling
 ```
 
-Full resources of the Mac. Best experience for agentic coding tasks.
+`brew-sync --profile <personal|corporate|workstation>` updates one tracked
+profile at a time. Client-specific package needs should normally stay inside
+the target workstation user, not in the Mac baseline.
 
----
+## Daily Flow
 
-## From the iPhone
-
-### SSH to Pi via Tailscale
-
-1. Tailscale VPN must be active on iPhone
-2. Terminal app (WebSSH / Blink) → connect to `100.88.210.35`
-3. `tmux attach` to resume sessions
-
-### Claude Code on Pi (via SSH from iPhone)
+Start a client workspace:
 
 ```bash
-ssh max@100.88.210.35
-tmux new -s claude        # or tmux attach
-claude
+work connect <client>
 ```
 
-Claude Code is a thin client — all inference runs on Anthropic's servers. The Pi just needs to send/receive text. Works fine on 4GB Pi.
-
-**Good for:** code review, quick fixes, generating snippets, exploring codebases.
-**Not great for:** large refactors with many file edits (slow I/O on Pi SD card).
-
----
-
-## Claude Code on the Pi
-
-### Installation
+Start a client workspace and browser companion:
 
 ```bash
-# Ensure 64-bit OS
-uname -m   # must show aarch64
-
-# Install Node.js 20+ (not from apt)
-curl -fsSL https://fnm.vercel.app/install | bash
-fnm install 20
-
-# Install Claude Code
-npm install -g @anthropic-ai/claude-code
+work connect --browse <client>
 ```
 
-### Authentication (headless)
+Or make browser launch the default for a shell/profile:
 
-The browser OAuth flow doesn't work on headless Pi. Two options:
-
-**Option A: API key (simplest)**
 ```bash
-export ANTHROPIC_API_KEY="sk-ant-..."
-# Add to ~/.zshrc or ~/.clientrc
+WORK_CONNECT_BROWSE=1 work connect <client>
 ```
 
-**Option B: Copy auth from Mac**
+Inside the workstation session, keep work in tmux. SSH drops should not lose the
+active editor, shell state, or long-running command output.
+
+## Time Tracking
+
+`work connect <client>` records local and client-side start/stop events. Client
+activity is sampled by `work-tracker pulse`, installed as a per-user cron on the
+workstation.
+
+Daily commands:
+
 ```bash
-# On Mac:
-scp ~/.config/claude-code/auth.json workstation:~/.config/claude-code/
+work tracker-status
+work report --day
+work report --week
 ```
 
-### Usage tips
-
-- Always run inside **tmux** — SSH drops lose context otherwise
-- Use `claude -p "prompt"` for non-interactive / batch operations
-- MCP servers may have issues on ARM64 — core functionality works fine
-
----
-
-## Docker: Mac as Container Host
-
-Don't use Docker remote context over SSH — it's slow (3-4s per command), volumes don't mount correctly, and Compose has path issues.
-
-Instead: run Docker on the Mac, access services from the Pi via Tailscale.
-
-### Setup
-
-1. Docker Desktop running on Mac
-2. Tailscale active on Mac (same account: macsee13@gmail.com)
-3. Containers publish ports normally (`-p 8080:80`)
-4. Pi accesses them via Mac's Tailscale IP or MagicDNS hostname
-
-### Example
+Operational checks:
 
 ```bash
-# On Mac — run your stack
-cd ~/projects/<project-name>
-docker compose up -d
-
-# From Pi — access the services
-curl http://mac-hostname:8080
-psql -h mac-hostname -p 5432
+work tracker-doctor
+work tracker-doctor <client>
 ```
 
-### When to run containers where
-
-| Container | Where | Why |
-|-----------|-------|-----|
-| MinIO | Mac | Heavy I/O, needs RAM |
-| Hive Metastore | Mac | Java, needs RAM |
-| Spark | Mac | CPU + RAM intensive |
-| Postgres (dev) | Mac | Better disk I/O |
-| Lightweight scripts | Pi | Always on, cron jobs |
-| VPN tunnels | Pi | Client isolation |
-
-### Docker Desktop Tailscale Extension (optional)
-
-Install from Docker Desktop → Extensions → Tailscale. All published container ports automatically appear on the tailnet.
-
----
-
-## Comparison Matrix
-
-| Scenario | Tool | Device | Pros | Cons |
-|----------|------|--------|------|------|
-| Heavy development | VSCode local + Docker | Mac | Full resources, fast | Not accessible from iPhone |
-| Remote editing | VSCode Remote SSH | Mac → Pi | Edit Pi files from Mac | ~1.2GB RAM on Pi |
-| Quick fixes (mobile) | SSH + tmux | iPhone → Pi | Works anywhere | Small screen, no IDE |
-| AI coding (full) | Claude Code CLI | Mac | Fast, full context | Mac only |
-| AI coding (mobile) | Claude Code CLI | iPhone → Pi → Claude | Works from phone | Pi I/O slower |
-| Container workloads | Docker Desktop | Mac | Resources, fast builds | Only when Mac is on |
-| Always-on services | Docker / systemd | Pi | 24/7, low power | Limited RAM (4GB) |
-
----
-
-## Verification
+If client tracker symlinks or crons drift, repair them from the workstation with
+sudo:
 
 ```bash
-# Tailscale mesh is up
-tailscale status
+sudo ~/.local/bin/work tracker-repair --all
+sudo ~/.local/bin/work tracker-repair <client>
+```
 
-# SSH to Pi works
+Tracking is best-effort operational telemetry, not billing-grade accounting. It
+counts active tmux sessions through periodic ticks and connected time through
+start/stop events. It ignores malformed log rows and deduplicates repeated
+pulses within the same interval.
+
+## Browser Companion
+
+`work browse <client>` opens an isolated Chrome profile on the Mac while routing
+browser traffic through a SOCKS proxy to the workstation.
+
+Useful commands:
+
+```bash
+work browse <client>
+work browse --status <client>
+work browse-stop <client>
+```
+
+This is useful for client portals, web apps, and tools that need to appear from
+the workstation network context. It does not magically isolate every Mac app.
+For apps that do not support SOCKS/proxy configuration cleanly, prefer browser
+based access or run the tool inside the client user on the workstation.
+
+## Editing
+
+Preferred options:
+
+- terminal editor inside `work connect <client>`;
+- local Mac editor for repo-local changes in this repo;
+- Remote SSH editor only when the client workflow really benefits from it.
+
+For Remote SSH, define host-local entries outside this repo:
+
+```sshconfig
+Host ws-<client>
+    HostName workstation
+    User <client>
+```
+
+Encrypted-home clients may need one password login first so ecryptfs can mount.
+After the home is mounted, key-based auth can work through server-side
+authorized keys.
+
+Keep editor caches, real hostnames, IPs, and client-specific SSH aliases out of
+git.
+
+## Docker
+
+Default: run project containers on the workstation under the relevant client
+user, unless the project explicitly needs Mac-only tooling.
+
+Why:
+
+- the workstation is always on;
+- tmux sessions survive Mac sleep/reboot;
+- client project state stays under `/home/<client>`;
+- Docker access is treated as privileged host access and should be intentional.
+
+Do not add client users to the `docker` group by default. Use
+`WORK_CLIENT_DOCKER=1 work user-create <client>` only when the privilege tradeoff
+is explicit.
+
+Mac Docker remains useful for local experiments, UI-heavy workflows, or projects
+that should not touch the workstation. Treat that as a per-project decision.
+
+## AI Coding Tools
+
+Run CLI coding tools either on the Mac for local repo work or inside tmux on the
+workstation for client/project work.
+
+On the workstation:
+
+```bash
+work connect <client>
+tmux attach
+```
+
+Keep credentials in the appropriate user context. Shared or personal secrets
+should not be copied into client homes unless the client workflow explicitly
+requires them.
+
+For headless auth flows, prefer documented CLI/API-token auth where available.
+If an auth file must be copied from the Mac, copy it only into the intended user
+home and include it in the config-backup review before relying on it.
+
+## Mobile Access
+
+Mobile is for quick fixes, status checks, and recovering a session:
+
+1. Enable Tailscale on the device.
+2. SSH to `workstation` or `<client>@workstation`.
+3. Attach tmux.
+
+```bash
 ssh workstation
-ssh ws-<client>      # password → ecryptfs (if encrypted home)
-
-# Claude Code on Pi
-ssh workstation
-claude --version
-
-# Mac Docker accessible from Pi
-ssh workstation
-curl http://<mac-tailscale-ip>:8080
+tmux attach
 ```
+
+For client work:
+
+```bash
+ssh <client>@workstation
+tmux attach
+```
+
+## Validation
+
+Before starting a focused work session:
+
+```bash
+work doctor
+work vpn-doctor
+```
+
+For a specific client:
+
+```bash
+work doctor <client>
+work vpn-doctor <client>
+```
+
+For compliance-profile clients:
+
+```bash
+sudo ~/.local/bin/work compliance-doctor <client>
+```
+
+For this repo:
+
+```bash
+workstation ci
+```
+
+Run the repo CI on the Linux workstation when macOS lacks Linux-only validation
+tools such as `shellcheck`.
+
+## Boundaries
+
+- Do not commit real client names, brands, IPs, DNS names, auth URLs, or tokens.
+- Do not make compliance checks global when the requirement is client-specific.
+- Do not give client users sudo.
+- Do not add client users to privileged groups by default.
+- Do not use the old Raspberry Pi workflow as the current operating model; see
+  [legacy/pi-workstation.md](legacy/pi-workstation.md) for historical notes.

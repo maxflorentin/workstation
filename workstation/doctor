@@ -1,0 +1,180 @@
+#!/bin/bash
+
+# doctor: non-destructive local checks for this workstation repo/host.
+
+set -u
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+FAIL=0
+WARN=0
+
+ok() { printf 'ok   %s\n' "$*"; }
+warn() { printf 'warn %s\n' "$*"; WARN=$((WARN + 1)); }
+fail() { printf 'fail %s\n' "$*"; FAIL=$((FAIL + 1)); }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+check_cmd() {
+    local cmd="$1"
+    if have "$cmd"; then
+        ok "command available: $cmd"
+    else
+        fail "missing command: $cmd"
+    fi
+}
+
+check_optional_cmd() {
+    local cmd="$1"
+    if have "$cmd"; then
+        ok "optional command available: $cmd"
+    else
+        warn "optional command missing: $cmd"
+    fi
+}
+
+check_link() {
+    local path="$1"
+    local expected="$2"
+    if [ -L "$path" ]; then
+        local target
+        target="$(readlink "$path")"
+        if [ "$target" = "$expected" ]; then
+            ok "symlink: $path"
+        else
+            warn "symlink target differs: $path -> $target (expected $expected)"
+        fi
+    elif [ -e "$path" ]; then
+        warn "exists but is not a symlink: $path"
+    else
+        warn "missing symlink: $path"
+    fi
+}
+
+check_bash_syntax() {
+    local file="$1"
+    if bash -n "$file" 2>/dev/null; then
+        ok "bash syntax: $file"
+    else
+        fail "bash syntax: $file"
+    fi
+}
+
+echo "workstation doctor"
+echo "  root: $ROOT"
+echo "  host: $(hostname -s 2>/dev/null || hostname)"
+echo "  os:   $(uname -s)/$(uname -m)"
+echo ""
+
+echo "== Required commands =="
+check_cmd git
+check_cmd bash
+check_cmd ssh
+check_cmd zsh
+check_cmd nvim
+check_cmd age
+check_cmd jq
+check_cmd rg
+
+if [ "$(uname -s)" = "Linux" ]; then
+    check_cmd tmux
+else
+    check_optional_cmd tmux
+fi
+
+echo ""
+echo "== Optional commands =="
+check_optional_cmd tailscale
+check_optional_cmd docker
+check_optional_cmd fastfetch
+check_optional_cmd shellcheck
+check_optional_cmd systemctl
+
+if have fnm; then
+    if fnm --version >/dev/null 2>&1; then
+        ok "optional command usable: fnm"
+    else
+        warn "fnm exists but cannot run; reinstall it for this CPU architecture"
+    fi
+fi
+
+echo ""
+echo "== Dotfile links =="
+check_link "$HOME/.zshrc" "$ROOT/shell/zshrc"
+check_link "$HOME/.gitignore_global" "$ROOT/.gitignore_global"
+check_link "$HOME/.config/nvim" "$ROOT/editors/nvim"
+
+if [ -x "$HOME/.local/bin/work" ]; then
+    ok "work CLI installed in ~/.local/bin"
+else
+    warn "work CLI not found in ~/.local/bin"
+fi
+
+if [ -x "$HOME/.local/bin/workstation" ]; then
+    ok "workstation CLI installed in ~/.local/bin"
+else
+    warn "workstation CLI not found in ~/.local/bin (run ./install)"
+fi
+
+echo ""
+echo "== Repository syntax =="
+while IFS= read -r file; do
+    check_bash_syntax "$file"
+done < <(
+    find "$ROOT" \
+        -path "$ROOT/.git" -prune -o \
+        -path "$ROOT/editors" -prune -o \
+        -path "*/.claude" -prune -o \
+        -type f -print | sort | while IFS= read -r candidate; do
+            IFS= read -r first_line < "$candidate" || true
+            if [[ "$first_line" == "#!"*bash* ]]; then
+                echo "$candidate"
+            fi
+        done
+)
+
+if have shellcheck; then
+    echo ""
+    echo "== Shellcheck =="
+    if shellcheck --severity=error "$ROOT/install" "$ROOT/install-corporate" "$ROOT/linux/work" "$ROOT/scripts/work-tracker" "$ROOT/workstation/doctor" "$ROOT/workstation/workstation" "$ROOT/tests/smoke.sh"; then
+        ok "shellcheck core scripts (errors only)"
+    else
+        warn "shellcheck reported errors"
+    fi
+fi
+
+echo ""
+echo "== Tailscale local =="
+if have tailscale; then
+    if tailscale status >/dev/null 2>&1; then
+        ok "personal tailscale status responds"
+        if tailscale ip -4 >/dev/null 2>&1; then
+            ok "personal tailscale has IPv4"
+        else
+            warn "personal tailscale has no IPv4"
+        fi
+    else
+        warn "tailscale installed but status failed"
+    fi
+else
+    warn "tailscale not installed locally"
+fi
+
+echo ""
+echo "== Envy =="
+if [ -x "$ROOT/scripts/envy/envy-doctor" ]; then
+    if "$ROOT/scripts/envy/envy-doctor" >/dev/null; then
+        ok "envy doctor passed"
+    else
+        warn "envy doctor reported issues"
+        "$ROOT/scripts/envy/envy-doctor" 2>/dev/null | sed 's/^/     /' || true
+    fi
+else
+    warn "envy-doctor script missing"
+fi
+
+echo ""
+if [ "$FAIL" -gt 0 ]; then
+    echo "doctor failed: $FAIL failure(s), $WARN warning(s)"
+    exit 1
+fi
+
+echo "doctor passed: $WARN warning(s)"

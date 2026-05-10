@@ -9,7 +9,6 @@
 
 set -e
 
-CLIENT="$USER"
 PROJECT="${1:-}"
 CLIENTRC="$HOME/.clientrc"
 

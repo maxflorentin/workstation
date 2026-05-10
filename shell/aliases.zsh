@@ -81,5 +81,3 @@ alias evsw='envy-switch'
 
 # Claude / AI
 alias clau='claude -c'
-alias xam='claude -c -p "/xam"'
-alias xamn='claude -p "/xam"'

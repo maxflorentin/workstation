@@ -1,0 +1,7 @@
+#!/bin/bash
+
+# Compatibility wrapper for the Linux workstation bootstrap entrypoint.
+
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec "$ROOT/linux/bootstrap.sh" "$@"
