@@ -66,6 +66,7 @@ check_output_contains "work help documents onboard" "$work_help" "work onboard <
 check_output_contains "work help documents clientrc init" "$work_help" "work clientrc-init [--force] <client>"
 check_output_contains "work help documents clientrc doctor" "$work_help" "work clientrc-doctor <client>"
 check_output_contains "work help documents client profile" "$work_help" "work client-profile <client>"
+check_output_contains "work help documents tailscale doctor scope" "$work_help" "Check personal path; with client, also secondary"
 check_output_contains "work help documents browse status flag" "$work_help" "work browse [--status] <client>"
 check_output_contains "work help documents connect browse env" "$work_help" "WORK_CONNECT_BROWSE"
 check_output_contains "work help documents legacy commands" "$work_help" "work legacy"

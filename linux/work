@@ -2332,7 +2332,7 @@ cmd_help() {
     echo "  work agvty <client>               Antigravity via X11 forwarding"
     echo "  work agvty-stop [client]          Stop Antigravity session"
     echo "  work tailscale-setup <client>     Install secondary Tailscale for client"
-    echo "  work tailscale-doctor [client]    Check personal + secondary Tailscale"
+    echo "  work tailscale-doctor [client]    Check personal path; with client, also secondary"
     echo "  work vpn-doctor [client]          Alias for tailscale-doctor"
     echo "  work ssh-keygen <client> [host]   Generate SSH key in client's home"
     echo "  work destroy <client>             Remove user + home + VPN + keys"
