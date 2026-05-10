@@ -52,6 +52,8 @@ Linux workstation
 | `WORK_CONNECT_BROWSE=1 work connect <client>` | Mac -> server | SSH into client workspace and open isolated browser |
 | `work tailscale-setup <client>` | Mac -> server | Install secondary Tailscale daemon for a client |
 | `work vpn-doctor [client]` | Mac -> server | Validate personal and secondary Tailscale |
+| `work tracker-doctor [client]` | Mac -> server | Validate work-tracker install and crons |
+| `work tracker-repair <client>` | Mac -> server | Repair client work-tracker symlink, log dir, and crons |
 | `envy-doctor [context]` | local user | Validate secret-store health without printing secrets |
 
 `work compliance-doctor <client>` is not a workstation-wide baseline. Use it
@@ -169,6 +171,18 @@ socket, userspace networking, blocked `--accept-routes`, and client-user status.
 - Work tracker running predictably.
 - Docker available but treated as privileged access.
 - Backups and recovery runbooks documented before adding more services.
+
+For time tracking, use:
+
+```bash
+work tracker-doctor
+work tracker-doctor <client>
+work tracker-repair <client>
+```
+
+`tracker-repair` is intentionally narrow: it repairs the client
+`work-tracker` symlink, data directory, and cron entries. It does not modify
+tracked work logs.
 
 ## Privilege Model
 

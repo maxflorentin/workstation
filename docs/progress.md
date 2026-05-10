@@ -28,6 +28,7 @@ from personal dotfiles to a reliable, sanitized workstation repo.
 - Homebrew sync is explicit and non-magical by default.
 - Sudo-dependent commands avoid password prompts in non-interactive flows.
 - Sanitization rules are documented and checked.
+- Work-tracker has explicit doctor and repair commands.
 
 ## Remaining
 
@@ -36,8 +37,7 @@ from personal dotfiles to a reliable, sanitized workstation repo.
 - Decide whether the client onboarding flow should stay checklist-driven or
   become a repo-local skill.
 - Improve `work onboard <client>` into a more complete guided flow.
-- Make work-tracker automation less fragile and verify client cron behavior
-  after reconnects and reboots.
+- Verify work-tracker behavior after reconnects and reboots.
 - Add focused tests for backup, onboarding, and sudo-limited behavior.
 - Document the Mac package split between personal, workstation, and
   client-specific tooling.
@@ -47,6 +47,7 @@ from personal dotfiles to a reliable, sanitized workstation repo.
 ## Next Good Steps
 
 1. Run a config-only backup spike in a private repo.
-2. Harden work-tracker install/cron validation for each client user.
+2. Run `work tracker-doctor` and repair any client with
+   `work tracker-repair <client>`.
 3. Turn the onboarding checklist into either a CLI wizard or a repo-local skill.
 4. Add tests around the sudo-limited flows that were recently hardened.
