@@ -819,6 +819,10 @@ client onboarding checklist
 [ ] Validate workstation and client basics:
     work doctor $client
 
+[ ] Repair/check client work tracking:
+    sudo ~/.local/bin/work tracker-repair $client
+    work tracker-doctor $client
+
 == Access decisions ==
 [ ] Decide Docker access explicitly.
     Default is no docker group. Use WORK_CLIENT_DOCKER=1 only when the client
@@ -854,7 +858,7 @@ client onboarding checklist
     Private encrypted target only; never this sanitized repo.
 
 [ ] Check backup readiness:
-    work backup-doctor
+    WORK_BACKUP_TARGET=/path/to/private-config-backup work backup-doctor
 
 [ ] Validate config-only backup context before writing:
     sudo ~/.local/bin/work config-backup --dry-run $client /path/to/private-config-backup '<age-recipient>'
@@ -862,11 +866,17 @@ client onboarding checklist
 [ ] Export config-only backup from the workstation with sudo when ready:
     sudo ~/.local/bin/work config-backup $client /path/to/private-config-backup '<age-recipient>'
 
+[ ] Confirm the private backup manifest is current:
+    WORK_BACKUP_TARGET=/path/to/private-config-backup work backup-doctor
+
+[ ] Perform a restore drill from the encrypted config backup before relying on it.
+
 == Final validation ==
 [ ] work doctor $client
 [ ] work client-profile $client
 [ ] work clientrc-doctor $client
 [ ] work vpn-doctor $client
+[ ] work tracker-doctor $client
 [ ] sudo ~/.local/bin/work compliance-doctor $client   # only if applicable
 EOF
 }

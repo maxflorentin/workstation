@@ -41,8 +41,10 @@ The workflow should guide or automate:
 - SSH key generation and host-local SSH config notes;
 - browser companion preference;
 - config-only backup enrollment;
+- work-tracker repair/doctor enrollment;
+- backup manifest validation and a restore drill;
 - final validation with `work doctor <client>`, `work vpn-doctor <client>`, and
-  relevant compliance checks.
+  relevant tracker/compliance checks.
 
 Remaining open questions:
 
