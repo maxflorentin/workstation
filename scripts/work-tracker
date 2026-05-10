@@ -18,8 +18,36 @@ LOG_FILE="$LOG_DIR/log.tsv"
 mkdir -p "$LOG_DIR"
 [ -f "$LOG_FILE" ] || printf 'timestamp\tevent\tclient\tproject\tsource\n' > "$LOG_FILE"
 
+_clean_field() {
+    local value="${1//$'\t'/ }"
+    value="${value//$'\r'/ }"
+    value="${value//$'\n'/ }"
+    printf '%s' "$value"
+}
+
+_recent_tick_event() {
+    local ts="$1" client="$2" project="$3" source="$4"
+    local cutoff=$((ts - PULSE_INTERVAL))
+
+    awk -F'\t' -v cutoff="$cutoff" -v c="$client" -v p="$project" -v s="$source" '
+        $1 > cutoff && $2=="tick" && $3==c && $4==p && $5==s { found=1 }
+        END { exit found ? 0 : 1 }
+    ' "$LOG_FILE"
+}
+
 _log_event() {
-    printf '%s\t%s\t%s\t%s\t%s\n' "$(date +%s)" "$1" "$2" "$3" "$4" >> "$LOG_FILE"
+    local ts="${WORK_TRACKER_NOW:-$(date +%s)}"
+    local event client project source
+    event="$(_clean_field "$1")"
+    client="$(_clean_field "$2")"
+    project="$(_clean_field "$3")"
+    source="$(_clean_field "$4")"
+
+    if [ "$event" = "tick" ] && _recent_tick_event "$ts" "$client" "$project" "$source"; then
+        return 0
+    fi
+
+    printf '%s\t%s\t%s\t%s\t%s\n' "$ts" "$event" "$client" "$project" "$source" >> "$LOG_FILE"
 }
 
 _last_connection_event() {
@@ -29,6 +57,9 @@ _last_connection_event() {
 cmd_start() {
     local client="$1" project="${2:-}" source="${3:-$(hostname -s)}"
     [ -z "$client" ] && { echo "Usage: work-tracker start <client> [project] [source]"; exit 1; }
+    client="$(_clean_field "$client")"
+    project="$(_clean_field "$project")"
+    source="$(_clean_field "$source")"
     [ "$(_last_connection_event "$client" "$project")" = "start" ] && return 0
     _log_event "start" "$client" "$project" "$source"
 }
@@ -36,6 +67,9 @@ cmd_start() {
 cmd_stop() {
     local client="$1" project="${2:-}" source="${3:-$(hostname -s)}"
     [ -z "$client" ] && { echo "Usage: work-tracker stop <client> [project] [source]"; exit 1; }
+    client="$(_clean_field "$client")"
+    project="$(_clean_field "$project")"
+    source="$(_clean_field "$source")"
     [ "$(_last_connection_event "$client" "$project")" != "start" ] && return 0
     _log_event "stop" "$client" "$project" "$source"
 }

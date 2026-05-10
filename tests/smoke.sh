@@ -149,6 +149,33 @@ else
 fi
 rm -rf "$tmp_data"
 
+tmp_data="$(mktemp -d "${TMPDIR:-/tmp}/work-tracker-data.XXXXXX")"
+XDG_DATA_HOME="$tmp_data" "$ROOT/scripts/work-tracker" start acme $'bad\tname' $'mac\nbook'
+if awk -F'\t' 'NR==2 && NF==5 && $4=="bad name" && $5=="mac book" { ok=1 } END { exit ok ? 0 : 1 }' "$tmp_data/work-tracker/log.tsv"; then
+    ok "work-tracker sanitizes tsv fields"
+else
+    fail "work-tracker sanitizes tsv fields"
+fi
+rm -rf "$tmp_data"
+
+tmp_data="$(mktemp -d "${TMPDIR:-/tmp}/work-tracker-data.XXXXXX")"
+tmp_bin="$(mktemp -d "${TMPDIR:-/tmp}/work-tracker-bin.XXXXXX")"
+now="$(date +%s)"
+cat > "$tmp_bin/tmux" <<EOF
+#!/bin/sh
+printf 'app %s\n' "$now"
+EOF
+chmod +x "$tmp_bin/tmux"
+PATH="$tmp_bin:$PATH" USER=acme XDG_DATA_HOME="$tmp_data" WORK_TRACKER_SOURCE=workstation WORK_TRACKER_NOW="$now" "$ROOT/scripts/work-tracker" pulse
+PATH="$tmp_bin:$PATH" USER=acme XDG_DATA_HOME="$tmp_data" WORK_TRACKER_SOURCE=workstation WORK_TRACKER_NOW="$now" "$ROOT/scripts/work-tracker" pulse
+tick_count="$(awk -F'\t' '$2=="tick" {n++} END {print n+0}' "$tmp_data/work-tracker/log.tsv")"
+if [ "$tick_count" = "1" ]; then
+    ok "work-tracker pulse deduplicates interval ticks"
+else
+    fail "work-tracker pulse deduplicates interval ticks"
+fi
+rm -rf "$tmp_data" "$tmp_bin"
+
 echo ""
 if [ "$FAIL" -gt 0 ]; then
     echo "smoke failed: $FAIL failure(s)"
