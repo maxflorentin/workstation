@@ -2523,12 +2523,12 @@ repair_user() {
     sudo -n -u "$user" test -f "$home/.local/share/work-tracker/log.tsv" || \
         sudo -n -u "$user" sh -c "printf 'timestamp\\tevent\\tclient\\tproject\\tsource\\n' > '$home/.local/share/work-tracker/log.tsv'"
 
+    cron_lines="$(sudo -n -u "$user" "$home/.local/bin/work-tracker" cron-lines "$home/.local/bin/work-tracker")"
     tmp="$(mktemp)"
     sudo -n -u "$user" crontab -l 2>/dev/null | grep -vF "$home/.local/bin/work-tracker pulse" | grep -vF "$home/.local/bin/work-tracker monthly-save" > "$tmp" || true
     {
         cat "$tmp"
-        printf '*/5 * * * * %s/.local/bin/work-tracker pulse >/dev/null 2>&1\n' "$home"
-        printf '0 1 1 * * %s/.local/bin/work-tracker monthly-save >/dev/null 2>&1\n' "$home"
+        printf '%s\n' "$cron_lines"
     } | sudo -n -u "$user" crontab -
     rm -f "$tmp"
 

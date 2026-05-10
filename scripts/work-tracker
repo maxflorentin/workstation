@@ -223,6 +223,12 @@ cmd_monthly_save() {
     echo "Saved: $report_file"
 }
 
+cmd_cron_lines() {
+    local bin="${1:-$HOME/.local/bin/work-tracker}"
+    printf '*/5 * * * * %s pulse >/dev/null 2>&1\n' "$bin"
+    printf '0 1 1 * * %s monthly-save >/dev/null 2>&1\n' "$bin"
+}
+
 case "${1:-}" in
     start)        shift; cmd_start "$@" ;;
     stop)         shift; cmd_stop "$@" ;;
@@ -230,5 +236,6 @@ case "${1:-}" in
     status)       cmd_status ;;
     report)       shift; cmd_report "$@" ;;
     monthly-save) cmd_monthly_save ;;
-    *)            echo "work-tracker: start|stop|pulse|status|report|monthly-save" ;;
+    cron-lines)   shift; cmd_cron_lines "$@" ;;
+    *)            echo "work-tracker: start|stop|pulse|status|report|monthly-save|cron-lines" ;;
 esac

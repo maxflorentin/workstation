@@ -105,12 +105,17 @@ if [ "$OS" = "Linux" ]; then
     ln -sf "$DOTFILES/linux/tmux-layout" "$HOME/.local/bin/tmux-layout"
     ln -sf "$DOTFILES/linux/work" "$HOME/.local/bin/work"
 
-    # work-tracker pulse cron (every 5 min, logs active tmux sessions)
-    if ! crontab -l 2>/dev/null | grep -qF "work-tracker pulse"; then
-        (crontab -l 2>/dev/null; echo "*/5 * * * * $HOME/.local/bin/work-tracker pulse >/dev/null 2>&1") | crontab -
-    fi
-    if ! crontab -l 2>/dev/null | grep -qF "work-tracker monthly-save"; then
-        (crontab -l 2>/dev/null; echo "0 1 1 * * $HOME/.local/bin/work-tracker monthly-save >/dev/null 2>&1") | crontab -
+    # work-tracker crons (pulse every 5 min; monthly report snapshot)
+    if [ -x "$HOME/.local/bin/work-tracker" ]; then
+        work_tracker_crons="$("$HOME/.local/bin/work-tracker" cron-lines "$HOME/.local/bin/work-tracker")"
+        existing_crontab="$(crontab -l 2>/dev/null || true)"
+        if ! printf '%s\n' "$existing_crontab" | grep -qF "$HOME/.local/bin/work-tracker pulse" || \
+           ! printf '%s\n' "$existing_crontab" | grep -qF "$HOME/.local/bin/work-tracker monthly-save"; then
+            {
+                printf '%s\n' "$existing_crontab" | grep -vF "$HOME/.local/bin/work-tracker pulse" | grep -vF "$HOME/.local/bin/work-tracker monthly-save" || true
+                printf '%s\n' "$work_tracker_crons"
+            } | crontab -
+        fi
     fi
     echo "  linux: tmux, tmux-layout, work cli, time-tracker crons"
 

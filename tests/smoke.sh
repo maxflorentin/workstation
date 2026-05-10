@@ -121,6 +121,10 @@ else
     fail "work-tracker help"
 fi
 
+tracker_crons="$("$ROOT/scripts/work-tracker" cron-lines /tmp/work-tracker)"
+check_output_contains "work-tracker cron lines include pulse" "$tracker_crons" "/tmp/work-tracker pulse"
+check_output_contains "work-tracker cron lines include monthly save" "$tracker_crons" "/tmp/work-tracker monthly-save"
+
 if "$ROOT/scripts/envy/envy-doctor" --definitely-not-a-real-context >/dev/null 2>&1; then
     fail "envy-doctor missing context should fail"
 else
