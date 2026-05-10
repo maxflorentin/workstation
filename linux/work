@@ -1514,20 +1514,21 @@ cmd_config_backup() {
     local dest_abs repo_abs client_dir workstation_dir tmp_dir generated_at manifest
     if [ -d "$dest" ]; then
         dest_abs="$(cd "$dest" && pwd -P)"
-    elif [ "$dry_run" -eq 1 ]; then
+    else
         local dest_parent dest_base
         dest_parent="$(dirname "$dest")"
         dest_base="$(basename "$dest")"
         if [ ! -d "$dest_parent" ]; then
             _fail "target parent does not exist: $dest_parent"
             echo ""
-            echo "config backup dry-run failed: $failures failure(s), $warnings warning(s)"
+            if [ "$dry_run" -eq 1 ]; then
+                echo "config backup dry-run failed: $failures failure(s), $warnings warning(s)"
+            else
+                echo "config backup failed: $failures failure(s), $warnings warning(s)"
+            fi
             exit 1
         fi
         dest_abs="$(cd "$dest_parent" && pwd -P)/$dest_base"
-    else
-        mkdir -p "$dest"
-        dest_abs="$(cd "$dest" && pwd -P)"
     fi
     repo_abs="$(cd "$(dirname "$0")/.." && pwd -P)"
 
@@ -1539,6 +1540,8 @@ cmd_config_backup() {
             exit 1
             ;;
     esac
+
+    [ "$dry_run" -eq 1 ] || mkdir -p "$dest_abs"
 
     if [ "$dry_run" -eq 1 ]; then
         echo "== Dry Run =="
