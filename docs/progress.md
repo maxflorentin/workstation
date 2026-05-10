@@ -1,6 +1,6 @@
 # Progress
 
-Current estimate: about 80% through the workstation foundation phase.
+Current estimate: about 85% through the workstation foundation phase.
 
 This is not a product roadmap. It is a working checkpoint for the migration
 from personal dotfiles to a reliable, sanitized workstation repo.
@@ -30,6 +30,8 @@ from personal dotfiles to a reliable, sanitized workstation repo.
 - Mac package baselines are split between personal, corporate, and workstation
   operator profiles.
 - Sudo-dependent commands avoid password prompts in non-interactive flows.
+- Sudo-limited paths are covered for onboarding, tracker repair/doctor,
+  setup, legacy VPN, and destructive commands.
 - Sanitization rules are documented and checked.
 - Work-tracker has explicit doctor and per-client/all-client repair commands.
 - `work onboard <client>` covers tracker repair, backup readiness, compliance
@@ -42,7 +44,8 @@ from personal dotfiles to a reliable, sanitized workstation repo.
 - Decide whether the client onboarding flow should stay checklist-driven or
   become a repo-local skill.
 - Verify work-tracker behavior after reconnects and reboots on the real host.
-- Add focused tests for backup, onboarding, and sudo-limited behavior.
+- Add deeper backup tests around restore metadata once a private backup target
+  exists.
 - Keep cleaning obsolete compatibility paths as real usage confirms they are no
   longer needed.
 
@@ -53,4 +56,5 @@ from personal dotfiles to a reliable, sanitized workstation repo.
    `work tracker-repair --all` or `work tracker-repair <client>`.
 3. Decide whether onboarding remains checklist-driven or becomes a repo-local
    skill.
-4. Add tests around the sudo-limited flows that were recently hardened.
+4. Add restore-oriented backup tests after the private backup repo shape is
+   exercised once.
