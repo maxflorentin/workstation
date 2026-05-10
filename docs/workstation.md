@@ -156,6 +156,10 @@ work doctor <client>
 work vpn-doctor <client>
 ```
 
+`work vpn-doctor` checks the Mac and workstation personal Tailscale path.
+`work vpn-doctor <client>` also checks the client's secondary daemon, wrapper,
+socket, userspace networking, blocked `--accept-routes`, and client-user status.
+
 ## Reliability Priorities
 
 - SSH reachable over Tailscale.

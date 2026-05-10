@@ -100,6 +100,11 @@ work doctor <client>
 work vpn-doctor <client>
 ```
 
+Use `work vpn-doctor` for the personal Mac/workstation path. Use
+`work vpn-doctor <client>` when the client should have a secondary Tailscale
+instance; that path validates the client daemon, socket, wrapper, routing guard,
+and client-user status.
+
 Direct checks:
 
 ```bash

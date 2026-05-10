@@ -43,6 +43,11 @@ work tailscale-setup <user>
 work vpn-doctor <user>
 ```
 
+Without a client argument, `work vpn-doctor` validates only the personal
+Mac-to-workstation Tailscale path. With a client argument, it also validates the
+secondary `tailscaled-<user>` service, socket, wrapper, userspace networking,
+blocked `--accept-routes`, and status as the client user.
+
 ## Daily usage (as client user)
 
 ```bash
