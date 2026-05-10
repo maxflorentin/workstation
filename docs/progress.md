@@ -1,6 +1,6 @@
 # Progress
 
-Current estimate: about 70% through the workstation foundation phase.
+Current estimate: about 80% through the workstation foundation phase.
 
 This is not a product roadmap. It is a working checkpoint for the migration
 from personal dotfiles to a reliable, sanitized workstation repo.
@@ -22,13 +22,18 @@ from personal dotfiles to a reliable, sanitized workstation repo.
 - Wazuh syscheck scope is validated when compliance is enabled.
 - ClamAV setup and compliance validation exist.
 - Config-only encrypted backup tooling exists.
+- Config-only backups include manifest checksums and schema validation.
 - Backups are explicitly separated from data-backup spikes.
 - Legacy WireGuard paths are hidden under `work legacy`.
 - Old experimental assistant commands were removed.
-- Homebrew sync is explicit and non-magical by default.
+- Homebrew sync is profile-based and non-magical by default.
+- Mac package baselines are split between personal, corporate, and workstation
+  operator profiles.
 - Sudo-dependent commands avoid password prompts in non-interactive flows.
 - Sanitization rules are documented and checked.
 - Work-tracker has explicit doctor and per-client/all-client repair commands.
+- `work onboard <client>` covers tracker repair, backup readiness, compliance
+  boundaries, and restore drills.
 
 ## Remaining
 
@@ -36,11 +41,8 @@ from personal dotfiles to a reliable, sanitized workstation repo.
   restore drill.
 - Decide whether the client onboarding flow should stay checklist-driven or
   become a repo-local skill.
-- Improve `work onboard <client>` into a more complete guided flow.
 - Verify work-tracker behavior after reconnects and reboots on the real host.
 - Add focused tests for backup, onboarding, and sudo-limited behavior.
-- Document the Mac package split between personal, workstation, and
-  client-specific tooling.
 - Keep cleaning obsolete compatibility paths as real usage confirms they are no
   longer needed.
 
@@ -49,5 +51,6 @@ from personal dotfiles to a reliable, sanitized workstation repo.
 1. Run a config-only backup spike in a private repo.
 2. Run `work tracker-doctor` and repair clients with
    `work tracker-repair --all` or `work tracker-repair <client>`.
-3. Turn the onboarding checklist into either a CLI wizard or a repo-local skill.
+3. Decide whether onboarding remains checklist-driven or becomes a repo-local
+   skill.
 4. Add tests around the sudo-limited flows that were recently hardened.
