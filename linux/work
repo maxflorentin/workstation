@@ -1065,7 +1065,7 @@ cmd_tailscale_setup() {
     _validate_client_name "$client"
 
     if _ssh_quiet "sudo -n true"; then
-        _ssh_tty "sudo ~/.dotfiles/workstation/tailscale-client-setup '$client'"
+        _ssh_tty "sudo -n ~/.dotfiles/workstation/tailscale-client-setup '$client'"
     else
         echo "tailscale-setup requires sudo on the workstation" >&2
         echo "run: ssh $PI_USER@$PI_HOST 'sudo ~/.local/bin/work tailscale-setup $client'" >&2
@@ -1232,7 +1232,7 @@ cmd_clamav_setup() {
         exit 1
     fi
 
-    _ssh_tty "sudo ~/.local/bin/work clamav-setup-local"
+    _ssh_tty "sudo -n ~/.local/bin/work clamav-setup-local"
 }
 
 cmd_clamav_setup_local() {
@@ -2235,10 +2235,17 @@ cmd_report() {
     local clients
     clients=$(_list_clients)
     if [ -n "$clients" ]; then
+        local can_sudo=0
+        if _ssh_quiet "sudo -n true"; then
+            can_sudo=1
+        else
+            echo "warn workstation sudo unavailable; client tracker logs skipped" >&2
+        fi
         while IFS= read -r client; do
             [ -z "$client" ] && continue
+            [ "$can_sudo" -eq 1 ] || continue
             local client_log
-            client_log=$(_ssh_quiet "sudo cat /home/$client/.local/share/work-tracker/log.tsv 2>/dev/null") || true
+            client_log=$(_ssh_quiet "sudo -n cat /home/$client/.local/share/work-tracker/log.tsv 2>/dev/null") || true
             [ -n "$client_log" ] && echo "$client_log" | tail -n +2 >> "$tmp"
         done <<< "$clients"
     fi
@@ -2326,10 +2333,22 @@ cmd_tracker_status() {
         return
     fi
 
+    local can_sudo=0
+    if _ssh_quiet "sudo -n true"; then
+        can_sudo=1
+    else
+        echo "info workstation sudo unavailable; client tracker status is limited"
+        echo ""
+    fi
+
     while IFS= read -r client; do
         [ -z "$client" ] && continue
         echo "=== Workstation: $client ==="
-        _ssh_quiet "sudo -u $client /home/$client/.local/bin/work-tracker status 2>/dev/null" || echo "  (unreachable)"
+        if [ "$can_sudo" -eq 1 ]; then
+            _ssh_quiet "sudo -n -u $client /home/$client/.local/bin/work-tracker status 2>/dev/null" || echo "  (unreachable)"
+        else
+            echo "  (skipped: sudo unavailable)"
+        fi
         echo ""
     done <<< "$clients"
 }
