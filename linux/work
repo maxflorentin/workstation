@@ -856,6 +856,9 @@ client onboarding checklist
 [ ] Check backup readiness:
     work backup-doctor
 
+[ ] Validate config-only backup context before writing:
+    sudo ~/.local/bin/work config-backup --dry-run $client /path/to/private-config-backup '<age-recipient>'
+
 [ ] Export config-only backup from the workstation with sudo when ready:
     sudo ~/.local/bin/work config-backup $client /path/to/private-config-backup '<age-recipient>'
 
@@ -2713,7 +2716,7 @@ cmd_help() {
     echo "  work compliance-doctor <client>   Check optional per-client compliance profile"
     echo "  work clamav-setup                 Install and initialize ClamAV"
     echo "  work backup-doctor                Check backup/recovery readiness"
-    echo "  work config-backup <client> <dir> <recipient>"
+    echo "  work config-backup [--dry-run] <client> <dir> <recipient>"
     echo "                                     Export encrypted config-only backup"
     echo "  work connect [--browse] [client] [project]"
     echo "                                     SSH as client + tmux; optionally open browser"

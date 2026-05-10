@@ -71,6 +71,7 @@ check_output_contains "work help documents browse status flag" "$work_help" "wor
 check_output_contains "work help documents connect browse env" "$work_help" "WORK_CONNECT_BROWSE"
 check_output_contains "work help documents tracker doctor" "$work_help" "work tracker-doctor [client]"
 check_output_contains "work help documents tracker repair" "$work_help" "work tracker-repair <client|--all>"
+check_output_contains "work help documents config backup dry run" "$work_help" "work config-backup [--dry-run]"
 check_output_contains "work help documents legacy commands" "$work_help" "work legacy"
 
 connect_usage="$("$ROOT/linux/work" connect --browse 2>&1)"
@@ -114,6 +115,7 @@ check_output_contains "work onboard prints checklist" "$onboard_output" "client 
 check_output_contains "work onboard includes clientrc doctor" "$onboard_output" "work clientrc-doctor acme"
 check_output_contains "work onboard includes client profile" "$onboard_output" "work client-profile acme"
 check_output_contains "work onboard includes compliance boundary" "$onboard_output" "must not scan /home"
+check_output_contains "work onboard includes config backup dry run" "$onboard_output" "work config-backup --dry-run acme"
 
 tracker_repair_usage="$("$ROOT/linux/work" tracker-repair 2>&1)"
 check_output_contains "work tracker-repair requires client" "$tracker_repair_usage" "Usage: work tracker-repair <client|--all>"
