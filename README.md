@@ -80,5 +80,6 @@ work connect --browse <client> # tmux workspace + isolated Chrome profile
 - [Envy](docs/envy.md) - Encrypted secrets manager
 - [Sanitization](docs/sanitization.md) - rules for keeping private names and infrastructure out of git
 - [Reliability](docs/reliability.md) - health, backup, and recovery runbooks
+- [Progress](docs/progress.md) - current foundation checkpoint and next steps
 - [Spikes](docs/spikes.md) - deferred ideas and open questions
 - [Legacy Pi](docs/pi-workstation.md) - archived notes from the earlier Raspberry Pi model
