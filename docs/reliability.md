@@ -82,8 +82,9 @@ The command refuses to write into this sanitized repo or into the client home.
 It writes encrypted `.age` files under `clients/<client>/` and `workstation/`,
 plus a small restore README in the private destination.
 It also writes a plaintext `MANIFEST.tsv` with generated file names, statuses,
-and labels. The manifest must not contain secrets; it is intended for quick
-audits before committing the encrypted backup repo.
+encrypted file sizes, SHA256 checksums, and labels. The manifest must not
+contain secrets; it is intended for quick audits before committing the encrypted
+backup repo.
 
 Expected inputs:
 

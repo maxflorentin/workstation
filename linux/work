@@ -1587,7 +1587,7 @@ cmd_config_backup() {
     trap 'rm -rf "$tmp_dir"' RETURN
     generated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     manifest="$dest_abs/MANIFEST.tsv"
-    printf 'timestamp\tclient\tstatus\tpath\tlabel\n' > "$manifest"
+    printf 'timestamp\tclient\tstatus\tpath\tbytes\tsha256\tlabel\n' > "$manifest"
 
     _manifest_path() {
         local path="$1"
@@ -1601,7 +1601,14 @@ cmd_config_backup() {
         local status="$1"
         local path="$2"
         local label="$3"
-        printf '%s\t%s\t%s\t%s\t%s\n' "$generated_at" "$client" "$status" "$(_manifest_path "$path")" "$label" >> "$manifest"
+        local bytes="-"
+        local sha256="-"
+        if [ -f "$path" ]; then
+            bytes="$(stat -c %s "$path" 2>/dev/null || printf '-')"
+            sha256="$(sha256sum "$path" 2>/dev/null | awk '{print $1}')"
+            [ -n "$sha256" ] || sha256="-"
+        fi
+        printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$generated_at" "$client" "$status" "$(_manifest_path "$path")" "$bytes" "$sha256" "$label" >> "$manifest"
     }
 
     _encrypt_file() {
