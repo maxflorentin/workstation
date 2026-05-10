@@ -129,12 +129,19 @@ timestamp	event	client	project	source
 400	tick	acme	app	pi
 700	tick	acme	app	pi
 3700	stop	acme	app	mac
+not-a-ts	tick	broken	app	pi
+900	tick	too	few
 EOF
 
 if WORK_TRACKER_LOG="$tmp_log" "$ROOT/scripts/work-tracker" report --all | grep -q 'acme/app'; then
     ok "work-tracker report fixture"
 else
     fail "work-tracker report fixture"
+fi
+if WORK_TRACKER_LOG="$tmp_log" "$ROOT/scripts/work-tracker" report --all | grep -q 'broken'; then
+    fail "work-tracker report ignores malformed rows"
+else
+    ok "work-tracker report ignores malformed rows"
 fi
 rm -f "$tmp_log"
 

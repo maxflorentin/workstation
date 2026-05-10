@@ -2223,13 +2223,17 @@ cmd_watch() {
 cmd_report() {
     local period="${1:---week}"
     local local_log="${XDG_DATA_HOME:-$HOME/.local/share}/work-tracker/log.tsv"
-    local tmp="/tmp/work-tracker-merged-$$.tsv"
-    local sorted="/tmp/work-tracker-sorted-$$.tsv"
+    local tmp_dir tmp sorted
+
+    tmp_dir="$(mktemp -d "${TMPDIR:-/tmp}/work-report.XXXXXX")"
+    tmp="$tmp_dir/merged.tsv"
+    sorted="$tmp_dir/sorted.tsv"
+    trap 'rm -rf "$tmp_dir"' EXIT
 
     printf 'timestamp\tevent\tclient\tproject\tsource\n' > "$tmp"
 
     # Mac local log
-    [ -f "$local_log" ] && tail -n +2 "$local_log" >> "$tmp"
+    [ -f "$local_log" ] && tail -n +2 "$local_log" | awk -F'\t' 'NF==5 && $1 ~ /^[0-9]+$/ && $2 ~ /^(start|stop|tick)$/ {print}' >> "$tmp"
 
     # Iterate client users on the workstation and pull each log (via admin sudo)
     local clients
@@ -2246,7 +2250,7 @@ cmd_report() {
             [ "$can_sudo" -eq 1 ] || continue
             local client_log
             client_log=$(_ssh_quiet "sudo -n cat /home/$client/.local/share/work-tracker/log.tsv 2>/dev/null") || true
-            [ -n "$client_log" ] && echo "$client_log" | tail -n +2 >> "$tmp"
+            [ -n "$client_log" ] && printf '%s\n' "$client_log" | tail -n +2 | awk -F'\t' 'NF==5 && $1 ~ /^[0-9]+$/ && $2 ~ /^(start|stop|tick)$/ {print}' >> "$tmp"
         done <<< "$clients"
     fi
 
@@ -2255,7 +2259,8 @@ cmd_report() {
     tail -n +2 "$tmp" | sort -t"$(printf '\t')" -k1,1n | uniq >> "$sorted"
 
     WORK_TRACKER_LOG="$sorted" work-tracker report "$period"
-    rm -f "$tmp" "$sorted"
+    rm -rf "$tmp_dir"
+    trap - EXIT
 }
 
 # --- ssh-keygen ---

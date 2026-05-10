@@ -106,6 +106,7 @@ cmd_status() {
 
     awk -F'\t' -v now="$now" -v cutoff="$cutoff" '
     NR==1 { next }
+    NF != 5 || $1 !~ /^[0-9]+$/ || $2 !~ /^(start|stop|tick)$/ { next }
     {
         key = $3 ($4 ? "/"$4 : "")
         # Track start/stop state
@@ -158,6 +159,7 @@ cmd_report() {
 
     awk -F'\t' -v cutoff="$cutoff" -v now="$now" -v interval="$PULSE_INTERVAL" '
     NR==1 { next }
+    NF != 5 || $1 !~ /^[0-9]+$/ || $2 !~ /^(start|stop|tick)$/ { next }
     $1 < cutoff { next }
     {
         key = $3 ($4 ? "/"$4 : "")
