@@ -382,10 +382,20 @@ if [ -z "$template" ]; then
     exit 1
 fi
 
-tmp="$(mktemp)"
-run_root cat "$template" | sed "s/<client>/$CLIENT/g" > "$tmp"
-run_root install -o "$CLIENT" -g "$CLIENT" -m 600 "$tmp" "$dest"
-rm -f "$tmp"
+tmp_src="$(mktemp)"
+tmp_out="$(mktemp)"
+cleanup_clientrc_init() {
+    rm -f "$tmp_src" "$tmp_out"
+}
+trap cleanup_clientrc_init EXIT
+
+if ! run_root cat "$template" > "$tmp_src"; then
+    echo "clientrc template unreadable: $template" >&2
+    exit 1
+fi
+
+sed "s/<client>/$CLIENT/g" "$tmp_src" > "$tmp_out"
+run_root install -o "$CLIENT" -g "$CLIENT" -m 600 "$tmp_out" "$dest"
 echo "  .clientrc installed from template"
 REMOTE
 }
