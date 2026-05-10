@@ -1212,7 +1212,25 @@ cmd_compliance_doctor() {
 cmd_clamav_setup() {
     echo "Installing and initializing ClamAV on $PI_HOST..."
     echo "This requires sudo on the workstation."
-    _ssh_tty "sudo bash -s" <<'REMOTE'
+    if ! _ssh_quiet "sudo -n true"; then
+        echo "clamav-setup requires sudo on the workstation" >&2
+        echo "run: ssh $PI_USER@$PI_HOST 'sudo ~/.local/bin/work clamav-setup'" >&2
+        exit 1
+    fi
+
+    _ssh_tty "sudo ~/.local/bin/work clamav-setup-local"
+}
+
+cmd_clamav_setup_local() {
+    if [ "$(uname -s)" != "Linux" ]; then
+        echo "clamav-setup-local must run on Linux" >&2
+        exit 1
+    fi
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "clamav-setup-local requires root" >&2
+        exit 1
+    fi
+
 set -e
 apt-get update
 apt-get install -y clamav clamav-daemon clamav-freshclam
@@ -1230,7 +1248,6 @@ for name in freshclam daemon; do
     systemctl enable --now "clamav-${name}"
 done
 systemctl start clamav-daemon
-REMOTE
 }
 
 # --- backup-doctor ---
@@ -2364,6 +2381,7 @@ case "${1:-}" in
     doctor)         shift; cmd_doctor "$@" ;;
     compliance-doctor) shift; cmd_compliance_doctor "$@" ;;
     clamav-setup)   shift; cmd_clamav_setup "$@" ;;
+    clamav-setup-local) shift; cmd_clamav_setup_local "$@" ;;
     backup-doctor)  shift; cmd_backup_doctor "$@" ;;
     config-backup)  shift; cmd_config_backup "$@" ;;
     status)         cmd_status ;;
