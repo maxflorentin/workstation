@@ -861,8 +861,15 @@ cmd_vpn_up() {
 
     _validate_client_name "$client"
 
+    if ! _ssh_quiet "sudo -n true"; then
+        echo "vpn-up is a legacy WireGuard command and requires sudo on the workstation" >&2
+        echo "preferred: work tailscale-setup $client" >&2
+        echo "run legacy: ssh $PI_USER@$PI_HOST 'sudo wg-quick up -- $client'" >&2
+        exit 1
+    fi
+
     local allowed
-    allowed=$(_ssh_quiet "sudo grep -i 'AllowedIPs' /etc/wireguard/$client.conf 2>/dev/null")
+    allowed=$(_ssh_quiet "sudo -n grep -i 'AllowedIPs' /etc/wireguard/$client.conf 2>/dev/null")
     if echo "$allowed" | grep -q '0\.0\.0\.0/0'; then
         echo "WARNING: $client.conf routes ALL traffic (AllowedIPs = 0.0.0.0/0)"
         echo "This will kill your SSH connection to the workstation."
@@ -875,7 +882,7 @@ cmd_vpn_up() {
     fi
 
     echo "Starting VPN for $client..."
-    _ssh_data "sudo wg-quick up -- '$client'"
+    _ssh_data "sudo -n wg-quick up -- '$client'"
     echo "VPN active."
 }
 
@@ -886,7 +893,14 @@ cmd_vpn_down() {
         exit 1
     fi
     _validate_client_name "$client"
-    _ssh_data "sudo wg-quick down -- '$client'" 2>/dev/null || true
+
+    if ! _ssh_quiet "sudo -n true"; then
+        echo "vpn-down is a legacy WireGuard command and requires sudo on the workstation" >&2
+        echo "run legacy: ssh $PI_USER@$PI_HOST 'sudo wg-quick down -- $client'" >&2
+        exit 1
+    fi
+
+    _ssh_data "sudo -n wg-quick down -- '$client'" 2>/dev/null || true
     echo "VPN stopped for $client"
 }
 
