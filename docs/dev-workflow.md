@@ -54,6 +54,40 @@ WORK_CONNECT_BROWSE=1 work connect <client>
 Inside the workstation session, keep work in tmux. SSH drops should not lose the
 active editor, shell state, or long-running command output.
 
+## Time Tracking
+
+`work connect <client>` records local and client-side start/stop events. Client
+activity is sampled by `work-tracker pulse`, installed as a per-user cron on the
+workstation.
+
+Daily commands:
+
+```bash
+work tracker-status
+work report --day
+work report --week
+```
+
+Operational checks:
+
+```bash
+work tracker-doctor
+work tracker-doctor <client>
+```
+
+If client tracker symlinks or crons drift, repair them from the workstation with
+sudo:
+
+```bash
+sudo ~/.local/bin/work tracker-repair --all
+sudo ~/.local/bin/work tracker-repair <client>
+```
+
+Tracking is best-effort operational telemetry, not billing-grade accounting. It
+counts active tmux sessions through periodic ticks and connected time through
+start/stop events. It ignores malformed log rows and deduplicates repeated
+pulses within the same interval.
+
 ## Browser Companion
 
 `work browse <client>` opens an isolated Chrome profile on the Mac while routing

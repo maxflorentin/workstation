@@ -37,7 +37,7 @@ from personal dotfiles to a reliable, sanitized workstation repo.
 - Decide whether the client onboarding flow should stay checklist-driven or
   become a repo-local skill.
 - Improve `work onboard <client>` into a more complete guided flow.
-- Verify work-tracker behavior after reconnects and reboots.
+- Verify work-tracker behavior after reconnects and reboots on the real host.
 - Add focused tests for backup, onboarding, and sudo-limited behavior.
 - Document the Mac package split between personal, workstation, and
   client-specific tooling.

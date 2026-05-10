@@ -175,6 +175,8 @@ socket, userspace networking, blocked `--accept-routes`, and client-user status.
 For time tracking, use:
 
 ```bash
+work tracker-status
+work report --week
 work tracker-doctor
 work tracker-doctor <client>
 work tracker-repair <client>
@@ -183,7 +185,9 @@ work tracker-repair --all
 
 `tracker-repair` is intentionally narrow: it repairs the client
 `work-tracker` symlink, data directory, and cron entries. It does not modify
-tracked work logs.
+tracked work logs. `work report` merges the Mac log with readable client logs;
+without passwordless sudo on the workstation, client logs are skipped and the
+report falls back to local data.
 
 ## Privilege Model
 
