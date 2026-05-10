@@ -131,6 +131,34 @@ check_output_contains "work onboard includes restore drill" "$onboard_output" "r
 tracker_repair_usage="$("$ROOT/linux/work" tracker-repair 2>&1)"
 check_output_contains "work tracker-repair requires client" "$tracker_repair_usage" "Usage: work tracker-repair <client|--all>"
 
+tmp_bin="$(mktemp -d "${TMPDIR:-/tmp}/work-smoke-bin.XXXXXX")"
+cat > "$tmp_bin/ssh" <<'EOF'
+#!/bin/sh
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -T|-t|-tt) shift ;;
+        -o) shift 2 ;;
+        *@*) shift ;;
+        *) break ;;
+    esac
+done
+eval "$*"
+EOF
+cat > "$tmp_bin/sudo" <<'EOF'
+#!/bin/sh
+if [ "$1" = "-n" ] && [ "$2" = "true" ]; then
+    exit 1
+fi
+exit 1
+EOF
+chmod +x "$tmp_bin/ssh" "$tmp_bin/sudo"
+tracker_limited="$(
+    PATH="$tmp_bin:$PATH" WORKSTATION_HOST=smoke-host WORKSTATION_USER=max "$ROOT/linux/work" tracker-doctor acme 2>&1 || true
+)"
+check_output_contains "work tracker-doctor avoids sudo prompt" "$tracker_limited" "workstation sudo unavailable"
+check_output_contains "work tracker-doctor suggests sudo command" "$tracker_limited" "sudo ~/.local/bin/work tracker-doctor acme"
+rm -rf "$tmp_bin"
+
 report_missing_tracker="$(
     PATH="/usr/bin:/bin" "$ROOT/linux/work" report 2>&1 || true
 )"
