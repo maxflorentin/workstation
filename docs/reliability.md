@@ -62,6 +62,12 @@ plaintext.
 sudo ~/.local/bin/work config-backup <client> /path/to/private-config-backup 'age1...'
 ```
 
+Before writing encrypted files, validate the context with:
+
+```bash
+sudo ~/.local/bin/work config-backup --dry-run <client> /path/to/private-config-backup 'age1...'
+```
+
 For SSH recipients, quote the complete public key:
 
 ```bash

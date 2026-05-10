@@ -1427,19 +1427,27 @@ cmd_backup_doctor() {
 # Export restore-critical config to an external private repo, encrypted with age.
 # This intentionally excludes client data.
 cmd_config_backup() {
+    local dry_run=0
+    if [ "${1:-}" = "--dry-run" ]; then
+        dry_run=1
+        shift
+    fi
+
     local client="${1:-}"
     local dest="${2:-}"
     shift 2 2>/dev/null || true
     local recipient="$*"
     local failures=0
     local warnings=0
+    local dry_prefix=""
+    [ "$dry_run" -eq 1 ] && dry_prefix="--dry-run "
 
     _ok() { echo "ok   $*"; }
     _warn() { echo "warn $*"; warnings=$((warnings + 1)); }
     _fail() { echo "fail $*"; failures=$((failures + 1)); }
 
     if [ -z "$client" ] || [ -z "$dest" ] || [ -z "$recipient" ]; then
-        echo "Usage: work config-backup <client> <dest-dir> <age-recipient>"
+        echo "Usage: work config-backup [--dry-run] <client> <dest-dir> <age-recipient>"
         echo ""
         echo "Run this on the workstation. Use sudo for root-owned config:"
         echo "  sudo ~/.local/bin/work config-backup <client> /path/to/private-config-backup 'age1...'"
@@ -1453,18 +1461,19 @@ cmd_config_backup() {
     echo "  workstation: $PI_USER@$PI_HOST"
     echo "  client:      $client"
     echo "  target:      $dest"
+    [ "$dry_run" -eq 1 ] && echo "  mode:        dry-run"
     echo ""
 
     if ! _is_local_workstation; then
         _fail "config-backup must run on the workstation so root-owned files stay local"
         echo "     ssh $PI_USER@$PI_HOST"
-        echo "     sudo ~/.local/bin/work config-backup $client /path/to/private-config-backup '<age-recipient>'"
+        echo "     sudo ~/.local/bin/work config-backup ${dry_prefix}$client /path/to/private-config-backup '<age-recipient>'"
         exit 1
     fi
 
     if [ "$(id -u)" -ne 0 ]; then
         _fail "config-backup requires sudo to read client homes and root-owned config"
-        echo "     sudo ~/.local/bin/work config-backup $client '$dest' '<age-recipient>'"
+        echo "     sudo ~/.local/bin/work config-backup ${dry_prefix}$client '$dest' '<age-recipient>'"
         exit 1
     fi
 
@@ -1482,9 +1491,24 @@ cmd_config_backup() {
         exit 1
     fi
 
-    mkdir -p "$dest"
     local dest_abs repo_abs client_dir workstation_dir tmp_dir generated_at manifest
-    dest_abs="$(cd "$dest" && pwd -P)"
+    if [ -d "$dest" ]; then
+        dest_abs="$(cd "$dest" && pwd -P)"
+    elif [ "$dry_run" -eq 1 ]; then
+        local dest_parent dest_base
+        dest_parent="$(dirname "$dest")"
+        dest_base="$(basename "$dest")"
+        if [ ! -d "$dest_parent" ]; then
+            _fail "target parent does not exist: $dest_parent"
+            echo ""
+            echo "config backup dry-run failed: $failures failure(s), $warnings warning(s)"
+            exit 1
+        fi
+        dest_abs="$(cd "$dest_parent" && pwd -P)/$dest_base"
+    else
+        mkdir -p "$dest"
+        dest_abs="$(cd "$dest" && pwd -P)"
+    fi
     repo_abs="$(cd "$(dirname "$0")/.." && pwd -P)"
 
     case "$dest_abs" in
@@ -1495,6 +1519,40 @@ cmd_config_backup() {
             exit 1
             ;;
     esac
+
+    if [ "$dry_run" -eq 1 ]; then
+        echo "== Dry Run =="
+        _ok "client user exists"
+        _ok "target is outside sanitized repo and client home"
+        if [ -e "$dest_abs" ]; then
+            if [ -d "$dest_abs" ] && [ -w "$dest_abs" ]; then
+                _ok "target directory writable"
+            else
+                _fail "target exists but is not a writable directory"
+            fi
+        else
+            local dest_abs_parent
+            dest_abs_parent="$(dirname "$dest_abs")"
+            if [ -w "$dest_abs_parent" ]; then
+                _ok "target parent writable"
+            else
+                _fail "target parent not writable"
+            fi
+        fi
+        if [ -r "/home/$client/.clientrc" ]; then
+            _ok "required client .clientrc readable"
+        else
+            _fail "required client .clientrc unreadable"
+        fi
+
+        echo ""
+        if [ "$failures" -gt 0 ]; then
+            echo "config backup dry-run failed: $failures failure(s), $warnings warning(s)"
+            exit 1
+        fi
+        echo "config backup dry-run passed: $warnings warning(s)"
+        return 0
+    fi
 
     client_dir="$dest_abs/clients/$client"
     workstation_dir="$dest_abs/workstation"
