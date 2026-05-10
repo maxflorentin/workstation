@@ -70,7 +70,7 @@ check_output_contains "work help documents tailscale doctor scope" "$work_help" 
 check_output_contains "work help documents browse status flag" "$work_help" "work browse [--status] <client>"
 check_output_contains "work help documents connect browse env" "$work_help" "WORK_CONNECT_BROWSE"
 check_output_contains "work help documents tracker doctor" "$work_help" "work tracker-doctor [client]"
-check_output_contains "work help documents tracker repair" "$work_help" "work tracker-repair <client>"
+check_output_contains "work help documents tracker repair" "$work_help" "work tracker-repair <client|--all>"
 check_output_contains "work help documents legacy commands" "$work_help" "work legacy"
 
 connect_usage="$("$ROOT/linux/work" connect --browse 2>&1)"
@@ -98,7 +98,7 @@ check_output_contains "work onboard includes client profile" "$onboard_output" "
 check_output_contains "work onboard includes compliance boundary" "$onboard_output" "must not scan /home"
 
 tracker_repair_usage="$("$ROOT/linux/work" tracker-repair 2>&1)"
-check_output_contains "work tracker-repair requires client" "$tracker_repair_usage" "Usage: work tracker-repair <client>"
+check_output_contains "work tracker-repair requires client" "$tracker_repair_usage" "Usage: work tracker-repair <client|--all>"
 
 legacy_help="$("$ROOT/linux/work" legacy)"
 check_output_contains "work legacy documents vpn-up" "$legacy_help" "work vpn-up <client>"

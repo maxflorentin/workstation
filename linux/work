@@ -2403,8 +2403,8 @@ warnings=0
 
 if ! sudo -n true >/dev/null 2>&1; then
     echo "info workstation sudo unavailable; client tracker checks are limited"
-    if [ -n "$CLIENT" ]; then
-        echo "     run on the workstation with sudo: sudo ~/.local/bin/work tracker-doctor $CLIENT"
+    if [ -n "\$CLIENT" ]; then
+        echo "     run on the workstation with sudo: sudo ~/.local/bin/work tracker-doctor \$CLIENT"
     else
         echo "     run on the workstation with sudo: sudo ~/.local/bin/work tracker-doctor"
     fi
@@ -2443,60 +2443,88 @@ REMOTE
 cmd_tracker_repair() {
     local client="${1:-}"
     if [ -z "$client" ]; then
-        echo "Usage: work tracker-repair <client>"
+        echo "Usage: work tracker-repair <client|--all>"
         echo "Repairs the client work-tracker symlink, data dir, and cron entries."
         exit 1
     fi
-    _validate_client_name "$client"
+    [ "$client" = "--all" ] || _validate_client_name "$client"
 
     echo "tracker repair"
     echo "  workstation: $PI_USER@$PI_HOST"
-    echo "  client:      $client"
+    if [ "$client" = "--all" ]; then
+        echo "  scope:       all clients"
+    else
+        echo "  client:      $client"
+    fi
     echo ""
 
-    _ssh_data "CLIENT='$client' bash -s" <<'REMOTE'
+    _ssh_data "CLIENT='$client' PI_USER='$PI_USER' bash -s" <<'REMOTE'
 set -e
 
 if ! sudo -n true >/dev/null 2>&1; then
     echo "tracker-repair requires sudo on the workstation" >&2
-    echo "run on workstation: sudo ~/.local/bin/work tracker-repair $CLIENT" >&2
+    echo "run on workstation: sudo ~/.local/bin/work tracker-repair ${CLIENT}" >&2
     exit 1
 fi
 
-if ! id "$CLIENT" >/dev/null 2>&1; then
-    echo "client user does not exist: $CLIENT" >&2
-    exit 1
+repair_user() {
+    user="$1"
+
+    if ! id "$user" >/dev/null 2>&1; then
+        echo "fail client user does not exist: $user" >&2
+        return 1
+    fi
+
+    home="$(getent passwd "$user" | cut -d: -f6)"
+    repo="$home/.dotfiles"
+    tracker="$repo/scripts/work-tracker"
+
+    echo "== $user =="
+
+    if ! sudo -n test -x "$tracker"; then
+        echo "fail client dotfiles work-tracker missing or not executable: $tracker" >&2
+        return 1
+    fi
+
+    sudo -n -u "$user" mkdir -p "$home/.local/bin" "$home/.local/share/work-tracker"
+    sudo -n -u "$user" ln -sf "$tracker" "$home/.local/bin/work-tracker"
+    sudo -n -u "$user" test -f "$home/.local/share/work-tracker/log.tsv" || \
+        sudo -n -u "$user" sh -c "printf 'timestamp\\tevent\\tclient\\tproject\\tsource\\n' > '$home/.local/share/work-tracker/log.tsv'"
+
+    tmp="$(mktemp)"
+    sudo -n -u "$user" crontab -l 2>/dev/null | grep -vF "$home/.local/bin/work-tracker pulse" | grep -vF "$home/.local/bin/work-tracker monthly-save" > "$tmp" || true
+    {
+        cat "$tmp"
+        printf '*/5 * * * * %s/.local/bin/work-tracker pulse >/dev/null 2>&1\n' "$home"
+        printf '0 1 1 * * %s/.local/bin/work-tracker monthly-save >/dev/null 2>&1\n' "$home"
+    } | sudo -n -u "$user" crontab -
+    rm -f "$tmp"
+
+    sudo -n -u "$user" "$home/.local/bin/work-tracker" status >/dev/null
+
+    echo "ok   work-tracker symlink repaired"
+    echo "ok   work-tracker data directory ready"
+    echo "ok   work-tracker crons installed"
+    echo "ok   work-tracker status runs"
+}
+
+if [ "$CLIENT" = "--all" ]; then
+    clients=$(getent passwd | awk -F: -v admin="$PI_USER" '$3>=1000 && $1!=admin && $1!="nobody" && $1!="encryption_user" && $7 !~ /(nologin|false)$/ && $6 ~ /^\/home\// {print $1}' | sort)
+    if [ -z "$clients" ]; then
+        echo "warn no client users found"
+        exit 0
+    fi
+
+    while IFS= read -r user; do
+        [ -z "$user" ] && continue
+        repair_user "$user"
+        echo ""
+    done <<EOF
+$clients
+EOF
+else
+    repair_user "$CLIENT"
 fi
-
-home="$(getent passwd "$CLIENT" | cut -d: -f6)"
-repo="$home/.dotfiles"
-tracker="$repo/scripts/work-tracker"
-
-if ! sudo -n test -x "$tracker"; then
-    echo "client dotfiles work-tracker missing or not executable: $tracker" >&2
-    exit 1
-fi
-
-sudo -n -u "$CLIENT" mkdir -p "$home/.local/bin" "$home/.local/share/work-tracker"
-sudo -n -u "$CLIENT" ln -sf "$tracker" "$home/.local/bin/work-tracker"
-sudo -n -u "$CLIENT" test -f "$home/.local/share/work-tracker/log.tsv" || \
-    sudo -n -u "$CLIENT" sh -c "printf 'timestamp\\tevent\\tclient\\tproject\\tsource\\n' > '$home/.local/share/work-tracker/log.tsv'"
-
-tmp="$(mktemp)"
-sudo -n -u "$CLIENT" crontab -l 2>/dev/null | grep -vF "$home/.local/bin/work-tracker pulse" | grep -vF "$home/.local/bin/work-tracker monthly-save" > "$tmp" || true
-{
-    cat "$tmp"
-    printf '*/5 * * * * %s/.local/bin/work-tracker pulse >/dev/null 2>&1\n' "$home"
-    printf '0 1 1 * * %s/.local/bin/work-tracker monthly-save >/dev/null 2>&1\n' "$home"
-} | sudo -n -u "$CLIENT" crontab -
-rm -f "$tmp"
-
-sudo -n -u "$CLIENT" "$home/.local/bin/work-tracker" status >/dev/null
-
-echo "ok   work-tracker symlink repaired"
-echo "ok   work-tracker data directory ready"
-echo "ok   work-tracker crons installed"
-echo "ok   work-tracker status runs"
 REMOTE
 }
 
@@ -2570,7 +2598,8 @@ cmd_help() {
     echo "  work report [--day|--week|--month|--cal|--prev|--all]"
     echo "  work tracker-status               Active sessions (Mac + each client)"
     echo "  work tracker-doctor [client]      Validate work-tracker install/crons"
-    echo "  work tracker-repair <client>      Repair client work-tracker install/crons"
+    echo "  work tracker-repair <client|--all>"
+    echo "                                     Repair client work-tracker install/crons"
     echo ""
     echo "Config (env vars):"
     echo "  WORKSTATION_HOST           Server hostname (default: workstation)"

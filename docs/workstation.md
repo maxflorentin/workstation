@@ -53,7 +53,7 @@ Linux workstation
 | `work tailscale-setup <client>` | Mac -> server | Install secondary Tailscale daemon for a client |
 | `work vpn-doctor [client]` | Mac -> server | Validate personal and secondary Tailscale |
 | `work tracker-doctor [client]` | Mac -> server | Validate work-tracker install and crons |
-| `work tracker-repair <client>` | Mac -> server | Repair client work-tracker symlink, log dir, and crons |
+| `work tracker-repair <client|--all>` | Mac -> server | Repair client work-tracker symlink, log dir, and crons |
 | `envy-doctor [context]` | local user | Validate secret-store health without printing secrets |
 
 `work compliance-doctor <client>` is not a workstation-wide baseline. Use it
@@ -178,6 +178,7 @@ For time tracking, use:
 work tracker-doctor
 work tracker-doctor <client>
 work tracker-repair <client>
+work tracker-repair --all
 ```
 
 `tracker-repair` is intentionally narrow: it repairs the client

@@ -28,7 +28,7 @@ from personal dotfiles to a reliable, sanitized workstation repo.
 - Homebrew sync is explicit and non-magical by default.
 - Sudo-dependent commands avoid password prompts in non-interactive flows.
 - Sanitization rules are documented and checked.
-- Work-tracker has explicit doctor and repair commands.
+- Work-tracker has explicit doctor and per-client/all-client repair commands.
 
 ## Remaining
 
@@ -47,7 +47,7 @@ from personal dotfiles to a reliable, sanitized workstation repo.
 ## Next Good Steps
 
 1. Run a config-only backup spike in a private repo.
-2. Run `work tracker-doctor` and repair any client with
-   `work tracker-repair <client>`.
+2. Run `work tracker-doctor` and repair clients with
+   `work tracker-repair --all` or `work tracker-repair <client>`.
 3. Turn the onboarding checklist into either a CLI wizard or a repo-local skill.
 4. Add tests around the sudo-limited flows that were recently hardened.
