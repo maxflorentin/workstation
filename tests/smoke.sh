@@ -157,6 +157,11 @@ tracker_limited="$(
 )"
 check_output_contains "work tracker-doctor avoids sudo prompt" "$tracker_limited" "workstation sudo unavailable"
 check_output_contains "work tracker-doctor suggests sudo command" "$tracker_limited" "sudo ~/.local/bin/work tracker-doctor acme"
+tracker_repair_limited="$(
+    PATH="$tmp_bin:$PATH" WORKSTATION_HOST=smoke-host WORKSTATION_USER=max "$ROOT/linux/work" tracker-repair acme 2>&1 || true
+)"
+check_output_contains "work tracker-repair avoids sudo prompt" "$tracker_repair_limited" "tracker-repair requires sudo on the workstation"
+check_output_contains "work tracker-repair suggests sudo command" "$tracker_repair_limited" "sudo ~/.local/bin/work tracker-repair acme"
 rm -rf "$tmp_bin"
 
 report_missing_tracker="$(
