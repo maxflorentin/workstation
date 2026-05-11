@@ -136,7 +136,7 @@ cat > "$tmp_bin/ssh" <<'EOF'
 #!/bin/sh
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        -T|-t|-tt) shift ;;
+        -T|-t|-tt|-n) shift ;;
         -o) shift 2 ;;
         *@*) shift ;;
         *) break ;;
@@ -202,6 +202,51 @@ report_missing_tracker="$(
     PATH="/usr/bin:/bin" "$ROOT/linux/work" report 2>&1 || true
 )"
 check_output_contains "work report explains missing local tracker" "$report_missing_tracker" "work report requires work-tracker"
+
+tmp_bin="$(mktemp -d "${TMPDIR:-/tmp}/work-report-bin.XXXXXX")"
+cat > "$tmp_bin/work-tracker" <<EOF
+#!/bin/sh
+exec "$ROOT/scripts/work-tracker" "\$@"
+EOF
+cat > "$tmp_bin/ssh" <<'EOF'
+#!/bin/sh
+target=""
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        -T|-t|-tt|-n) shift ;;
+        -o) shift 2 ;;
+        *@*) target="$1"; shift ;;
+        *) break ;;
+    esac
+done
+case "$*" in
+    *"getent passwd"*)
+        printf 'acme\n'
+        printf 'beta\n'
+        ;;
+    *"sudo -n true"*)
+        exit 1
+        ;;
+    *"cat ~/.local/share/work-tracker/log.tsv"*)
+        printf 'timestamp\tevent\tclient\tproject\tsource\n'
+        case "$target" in
+            acme@*) printf '100\ttick\tacme\tapp\tworkstation\n' ;;
+            beta@*) printf '200\ttick\tbeta\tapi\tworkstation\n' ;;
+        esac
+        ;;
+    *)
+        eval "$*"
+        ;;
+esac
+EOF
+chmod +x "$tmp_bin/work-tracker" "$tmp_bin/ssh"
+report_direct_ssh="$(
+    PATH="$tmp_bin:/usr/bin:/bin" WORKSTATION_HOST=smoke-host WORKSTATION_USER=max XDG_DATA_HOME="$tmp_bin/data" "$ROOT/linux/work" report --all 2>&1
+)"
+check_output_contains "work report tries direct client ssh" "$report_direct_ssh" "trying direct client SSH logs"
+check_output_contains "work report includes direct client activity" "$report_direct_ssh" "acme/app"
+check_output_contains "work report keeps reading after first client ssh" "$report_direct_ssh" "beta/api"
+rm -rf "$tmp_bin"
 
 legacy_help="$("$ROOT/linux/work" legacy)"
 check_output_contains "work legacy documents vpn-up" "$legacy_help" "work vpn-up <client>"

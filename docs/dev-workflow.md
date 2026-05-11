@@ -72,6 +72,10 @@ active editor, shell state, or long-running command output.
 activity is sampled by `work-tracker pulse`, installed as a per-user cron on the
 workstation.
 
+`work report` merges the local Mac connection log with client-side tracker logs.
+If workstation admin sudo is unavailable, it tries direct SSH as each client
+user before falling back to local-only data.
+
 Daily commands:
 
 ```bash
