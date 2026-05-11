@@ -56,7 +56,7 @@ _ssh_quiet() {
     if _is_local_workstation; then
         bash -lc "$*" 2>/dev/null
     else
-        ssh -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=3 "$PI_USER@$PI_HOST" "$@" 2>/dev/null
+        ssh -n -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=3 "$PI_USER@$PI_HOST" "$@" 2>/dev/null
     fi
 }
 
@@ -71,7 +71,7 @@ _ssh_data() {
 # --- Client SSH helpers (run as <client>@<pi>) ---
 _ssh_as()       { local u="$1"; shift; ssh -t  "$u@$PI_HOST" "$@"; }
 _ssh_as_tty()   { local u="$1"; shift; ssh -tt "$u@$PI_HOST" "$@"; }
-_ssh_as_quiet() { local u="$1"; shift; ssh -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=3 "$u@$PI_HOST" "$@" 2>/dev/null; }
+_ssh_as_quiet() { local u="$1"; shift; ssh -n -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=3 "$u@$PI_HOST" "$@" 2>/dev/null; }
 _ssh_as_data()  { local u="$1"; shift; ssh -T  -o ClearAllForwardings=yes "$u@$PI_HOST" "$@"; }
 
 # List client users on the workstation (real humans with /home and a login shell,
@@ -2392,7 +2392,8 @@ cmd_report() {
     # Mac local log
     [ -f "$local_log" ] && tail -n +2 "$local_log" | awk -F'\t' 'NF==5 && $1 ~ /^[0-9]+$/ && $2 ~ /^(start|stop|tick)$/ {print}' >> "$tmp"
 
-    # Iterate client users on the workstation and pull each log (via admin sudo)
+    # Iterate client users on the workstation and pull each log. Prefer admin
+    # sudo when available; otherwise fall back to direct client SSH.
     local clients
     clients=$(_list_clients || true)
     if [ -z "$clients" ]; then
@@ -2403,13 +2404,16 @@ cmd_report() {
         if _ssh_quiet "sudo -n true"; then
             can_sudo=1
         else
-            echo "warn workstation sudo unavailable; client tracker logs skipped" >&2
+            echo "warn workstation sudo unavailable; trying direct client SSH logs" >&2
         fi
         while IFS= read -r client; do
             [ -z "$client" ] && continue
-            [ "$can_sudo" -eq 1 ] || continue
             local client_log
-            client_log=$(_ssh_quiet "sudo -n cat /home/$client/.local/share/work-tracker/log.tsv 2>/dev/null") || true
+            if [ "$can_sudo" -eq 1 ]; then
+                client_log=$(_ssh_quiet "sudo -n cat /home/$client/.local/share/work-tracker/log.tsv 2>/dev/null") || true
+            else
+                client_log=$(_ssh_as_quiet "$client" "cat ~/.local/share/work-tracker/log.tsv 2>/dev/null") || true
+            fi
             [ -n "$client_log" ] && printf '%s\n' "$client_log" | tail -n +2 | awk -F'\t' 'NF==5 && $1 ~ /^[0-9]+$/ && $2 ~ /^(start|stop|tick)$/ {print}' >> "$tmp"
         done <<< "$clients"
     fi

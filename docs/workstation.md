@@ -186,8 +186,8 @@ work tracker-repair --all
 `tracker-repair` is intentionally narrow: it repairs the client
 `work-tracker` symlink, data directory, and cron entries. It does not modify
 tracked work logs. `work report` merges the Mac log with readable client logs;
-without passwordless sudo on the workstation, client logs are skipped and the
-report falls back to local data.
+without passwordless sudo on the workstation, it falls back to direct SSH as the
+client user before falling back to local data only.
 
 ## Privilege Model
 
