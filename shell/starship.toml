@@ -2,6 +2,7 @@
 
 scan_timeout = 10
 command_timeout = 500
+right_format = "$status$jobs${custom.tmux}$time"
 
 format = """
 $username\
@@ -51,3 +52,25 @@ format = "[$virtualenv]($style) "
 style = "bright-black"
 detect_extensions = []
 detect_files = []
+
+[status]
+disabled = false
+format = "[$status]($style) "
+style = "red"
+
+[jobs]
+format = "[$number jobs]($style) "
+style = "yellow"
+number_threshold = 1
+
+[time]
+disabled = false
+format = "[$time]($style)"
+style = "bright-black"
+time_format = "%H:%M"
+
+[custom.tmux]
+when = 'test -n "$TMUX"'
+command = 'tmux display-message -p "#S:#I.#P" 2>/dev/null'
+format = "[$output]($style) "
+style = "bright-black"

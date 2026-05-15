@@ -1,0 +1,89 @@
+#!/bin/bash
+
+# tmux-sessionizer: pick or create a tmux session from project directories.
+# Usage:
+#   tmux-sessionizer             # fzf picker
+#   tmux-sessionizer dotfiles    # fuzzy match
+#   tmux-sessionizer ~/repo/app  # exact path
+
+set -euo pipefail
+
+query="${1:-}"
+
+project_roots() {
+    if [ -n "${TMUX_PROJECT_DIRS:-}" ]; then
+        printf '%s\n' "$TMUX_PROJECT_DIRS" | tr ':' '\n'
+    elif [ -n "${TAU_PROJECT_DIR:-}" ]; then
+        printf '%s\n' "$TAU_PROJECT_DIR"
+    fi
+
+    printf '%s\n' \
+        "$HOME/repos" \
+        "$HOME/Developer" \
+        "$HOME/Projects" \
+        "$HOME/.dotfiles"
+}
+
+project_dirs() {
+    project_roots | while IFS= read -r root; do
+        [ -d "$root" ] || continue
+
+        printf '%s\n' "$root"
+        find "$root" -mindepth 1 -maxdepth 2 -type d \
+            ! -path '*/.git' \
+            ! -path '*/.git/*' \
+            ! -path '*/node_modules' \
+            ! -path '*/node_modules/*' \
+            ! -path '*/.venv' \
+            ! -path '*/.venv/*' \
+            2>/dev/null
+    done | awk '!seen[$0]++'
+}
+
+select_dir() {
+    if [ -n "$query" ]; then
+        if [ -d "$query" ]; then
+            cd "$query" && pwd
+            return
+        fi
+
+        project_dirs | awk -v q="$(printf '%s' "$query" | tr '[:upper:]' '[:lower:]')" '
+            {
+                path = tolower($0)
+                name = path
+                sub(/^.*\//, "", name)
+                if (name == q || path ~ q) {
+                    print
+                    exit
+                }
+            }
+        '
+        return
+    fi
+
+    if command -v fzf >/dev/null 2>&1; then
+        project_dirs | fzf --prompt='tmux session> ' --height=80% --layout=reverse --border
+    else
+        project_dirs | sed -n '1p'
+    fi
+}
+
+target_dir="$(select_dir)"
+[ -n "$target_dir" ] || exit 0
+[ -d "$target_dir" ] || {
+    printf 'tmux-sessionizer: not a directory: %s\n' "$target_dir" >&2
+    exit 1
+}
+
+session_name="$(basename "$target_dir" | tr '.:' '__' | tr -cs '[:alnum:]_-' '_' | sed 's/^_*//; s/_*$//')"
+[ -n "$session_name" ] || session_name="workspace"
+
+if ! tmux has-session -t "=$session_name" 2>/dev/null; then
+    tmux new-session -d -s "$session_name" -c "$target_dir" -n "workspace"
+fi
+
+if [ -n "${TMUX:-}" ]; then
+    tmux switch-client -t "=$session_name"
+else
+    tmux attach -t "=$session_name"
+fi

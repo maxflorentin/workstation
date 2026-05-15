@@ -45,13 +45,21 @@ done
 # Workstation CLI
 [ -f "$DOTFILES/workstation/workstation" ] && ln -sf "$DOTFILES/workstation/workstation" "$HOME/.local/bin/workstation"
 
+# tmux
+ln -sfn "$DOTFILES/linux/tmux.conf" "$HOME/.tmux.conf"
+[ -f "$DOTFILES/scripts/tmux-sessionizer" ] && ln -sf "$DOTFILES/scripts/tmux-sessionizer" "$HOME/.local/bin/tmux-sessionizer"
+if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
+    git clone https://github.com/tmux-plugins/tpm "$HOME/.tmux/plugins/tpm"
+    echo "  tmux: tpm installed (run prefix+I inside tmux to install plugins)"
+fi
+
 # npm: user-local prefix (lets non-root users `npm i -g` for MCP servers, etc.)
 if [ ! -f "$HOME/.npmrc" ] || ! grep -q 'prefix=' "$HOME/.npmrc" 2>/dev/null; then
     mkdir -p "$HOME/.npm-global"
     echo "prefix=$HOME/.npm-global" >> "$HOME/.npmrc"
 fi
 
-echo "  common: shell, nvim, scripts, workstation cli, npm prefix"
+echo "  common: shell, nvim, scripts, workstation cli, tmux, npm prefix"
 
 # === macOS ===
 if [ "$OS" = "Darwin" ]; then
@@ -75,20 +83,11 @@ fi
 
 # === Linux ===
 if [ "$OS" = "Linux" ]; then
-    # tmux
-    ln -sfn "$DOTFILES/linux/tmux.conf" "$HOME/.tmux.conf"
-
     # ecryptfs auto-mount helper (for client users with encrypted homes)
     if [ -f "$DOTFILES/linux/ecryptfs-auto-mount" ] && command -v ecryptfs-unwrap-passphrase &>/dev/null; then
         sudo -n cp "$DOTFILES/linux/ecryptfs-auto-mount" /usr/local/sbin/ecryptfs-auto-mount 2>/dev/null && \
         sudo -n chmod 755 /usr/local/sbin/ecryptfs-auto-mount 2>/dev/null && \
         echo "  linux: ecryptfs-auto-mount updated" || true
-    fi
-
-    # tmux: TPM (plugin manager)
-    if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
-        git clone https://github.com/tmux-plugins/tpm "$HOME/.tmux/plugins/tpm"
-        echo "  linux: tpm installed (run prefix+I inside tmux to install plugins)"
     fi
 
     # tmux: snazzy theme

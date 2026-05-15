@@ -1,7 +1,7 @@
 # Shortcuts
 alias copyssh="pbcopy < $HOME/.ssh/id_ed25519.pub"
 alias reloadshell="exec zsh"
-alias dotpull='git -C ~/.dotfiles pull && ~/.dotfiles/install && exec zsh'
+alias dotpull='git -C ~/.dotfiles pull --rebase --autostash origin main && ~/.dotfiles/install && exec zsh'
 alias reloaddns="dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
 alias l="eza -l --group-directories-first --icons"
 alias ll="eza -la --group-directories-first --icons --git"

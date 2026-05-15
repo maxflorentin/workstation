@@ -58,6 +58,18 @@ fi
 source "$DOTFILES/shell/path.zsh"
 source "$DOTFILES/shell/aliases.zsh"
 
+# tmux/tau project discovery
+if [[ -z "${TMUX_PROJECT_DIRS:-}" ]]; then
+    export TMUX_PROJECT_DIRS="$HOME/repos:$HOME/Developer:$HOME/Projects:$DOTFILES"
+fi
+if [[ -z "${TAU_PROJECT_DIR:-}" ]]; then
+    for dir in "$HOME/Developer" "$HOME/repos" "$HOME/Projects"; do
+        [[ -d "$dir" ]] && export TAU_PROJECT_DIR="$dir" && break
+    done
+fi
+export TAU_EDITOR_CMD="${TAU_EDITOR_CMD:-${EDITOR:-nvim}}"
+export TAU_GIT_CMD="${TAU_GIT_CMD:-lazygit}"
+
 # Autojump
 if [ -f /opt/homebrew/etc/profile.d/autojump.sh ]; then
     . /opt/homebrew/etc/profile.d/autojump.sh
