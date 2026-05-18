@@ -69,10 +69,58 @@ _ssh_data() {
 }
 
 # --- Client SSH helpers (run as <client>@<pi>) ---
-_ssh_as()       { local u="$1"; shift; ssh -t  "$u@$PI_HOST" "$@"; }
-_ssh_as_tty()   { local u="$1"; shift; ssh -tt "$u@$PI_HOST" "$@"; }
-_ssh_as_quiet() { local u="$1"; shift; ssh -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=3 "$u@$PI_HOST" "$@" 2>/dev/null; }
-_ssh_as_data()  { local u="$1"; shift; ssh -T  -o ClearAllForwardings=yes "$u@$PI_HOST" "$@"; }
+_run_as_local_client() {
+    local u="$1"
+    shift
+
+    if [ "$(id -u)" -eq 0 ]; then
+        runuser -u "$u" -- env HOME="/home/$u" bash -lc "$*"
+    elif sudo -n true >/dev/null 2>&1; then
+        sudo -n -u "$u" -H bash -lc "$*"
+    else
+        sudo -u "$u" -H bash -lc "$*"
+    fi
+}
+
+_ssh_as() {
+    local u="$1"
+    shift
+    if _is_local_workstation; then
+        _run_as_local_client "$u" "$@"
+    else
+        ssh -t "$u@$PI_HOST" "$@"
+    fi
+}
+
+_ssh_as_tty() {
+    local u="$1"
+    shift
+    if _is_local_workstation; then
+        _run_as_local_client "$u" "$@"
+    else
+        ssh -tt "$u@$PI_HOST" "$@"
+    fi
+}
+
+_ssh_as_quiet() {
+    local u="$1"
+    shift
+    if _is_local_workstation; then
+        _run_as_local_client "$u" "$@" 2>/dev/null
+    else
+        ssh -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=3 "$u@$PI_HOST" "$@" 2>/dev/null
+    fi
+}
+
+_ssh_as_data() {
+    local u="$1"
+    shift
+    if _is_local_workstation; then
+        _run_as_local_client "$u" "$@"
+    else
+        ssh -T -o ClearAllForwardings=yes "$u@$PI_HOST" "$@"
+    fi
+}
 
 # List client users on the workstation (real humans with /home and a login shell,
 # excluding the admin user and known system helpers like ecryptfs's encryption_user).
@@ -99,27 +147,62 @@ _tracker_local_event() {
 
 # --- connect ---
 cmd_connect() {
-    local client="${1:-}"
+    local browse=0
+    local client=""
     local project=""
-    local connect_browse="${WORK_CONNECT_BROWSE:-}"
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --browse)
+                browse=1
+                shift
+                ;;
+            --)
+                shift
+                break
+                ;;
+            -*)
+                echo "Usage: work connect [--browse] [client] [project]"
+                exit 1
+                ;;
+            *)
+                if [ -z "$client" ]; then
+                    client="$1"
+                elif [ -z "$project" ]; then
+                    project="$1"
+                else
+                    echo "Usage: work connect [--browse] [client] [project]"
+                    exit 1
+                fi
+                shift
+                ;;
+        esac
+    done
+
+    if [ $# -gt 0 ]; then
+        if [ -z "$client" ]; then
+            client="$1"
+            shift
+        fi
+        if [ $# -gt 0 ] && [ -z "$project" ]; then
+            project="$1"
+            shift
+        fi
+    fi
+
+    if [ $# -gt 0 ]; then
+        echo "Usage: work connect [--browse] [client] [project]"
+        exit 1
+    fi
 
     if [ -z "$client" ]; then
+        if [ "$browse" -eq 1 ]; then
+            echo "Usage: work connect [--browse] <client> [project]"
+            exit 1
+        fi
         # No client → connect as admin to a plain tmux session
         _ssh_tty "tmux attach 2>/dev/null || tmux new -s main"
         return
-    fi
-
-    if [ "$client" = "--browse" ]; then
-        connect_browse=1
-        client="${2:-}"
-        project="${3:-}"
-    else
-        project="${2:-}"
-    fi
-
-    if [ -z "$client" ]; then
-        echo "Usage: work connect [--browse] <client> [project]"
-        exit 1
     fi
 
     _validate_client_name "$client"
@@ -129,7 +212,7 @@ cmd_connect() {
     # See: docs/ecryptfs.md
     _ssh_quiet "sudo /usr/local/sbin/ecryptfs-auto-mount '$client'" || true
 
-    if _truthy "$connect_browse"; then
+    if [ "$browse" -eq 1 ]; then
         cmd_browse "$client"
     fi
 
@@ -293,14 +376,12 @@ fi
 # Run install as the client user (symlinks zshrc, tmux conf, fastfetch, crons, etc.)
 # Use -H so HOME is set to /home/$CLIENT; use absolute paths to avoid ~ expansion issues.
 run_as_client_home bash -lc "cd /home/$CLIENT/.dotfiles && bash ./install" || true
-REMOTE
 
-    echo ""
-    echo "Phase 2: seeding envy and venv (as $client)..."
-    echo ""
+echo ""
+echo "Phase 2: seeding envy and venv (as $CLIENT)..."
+echo ""
 
-    # Phase 2: client-side ops (run as the new user)
-    _ssh_as_data "$client" "bash -s" <<'CLIENT_INIT'
+run_as_client_home bash -lc '
 set -e
 
 # Install uv if not already present for this user
@@ -318,7 +399,8 @@ if [ ! -d ~/.venv ] && [ -x ~/.local/bin/uv ]; then
 fi
 
 mkdir -p ~/.kube
-CLIENT_INIT
+'
+REMOTE
 
     cmd_clientrc_init "$client"
 

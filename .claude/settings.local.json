@@ -198,7 +198,10 @@
       "Bash(ssh workstation 'cd ~/.dotfiles && git checkout --theirs shell/zshrc 2>/dev/null; git checkout shell/zshrc -- 2>/dev/null; git restore --staged shell/zshrc; git checkout HEAD -- shell/zshrc && git stash drop 2>/dev/null; echo \"resolved\"')",
       "Bash(ssh workstation \"cd ~/.dotfiles && git pull && ln -sf ~/.dotfiles/scripts/py-setup ~/.local/bin/py-setup && which py-setup && echo 'ok'\")",
       "Bash(ssh workstation \"ls -la ~/.local/bin/py-setup && ~/.local/bin/py-setup 2>&1 | head -1\")",
-      "Bash(chmod +x /Users/max/.dotfiles/install-corporate)"
+      "Bash(chmod +x /Users/max/.dotfiles/install-corporate)",
+      "Bash(chmod +x /Users/max/.dotfiles/linux/tailscale-mutt-setup.sh)",
+      "Bash(chmod +x /Users/max/.dotfiles/linux/ecryptfs-auto-mount)",
+      "Bash(chmod +x /Users/max/.dotfiles/linux/tailscale-client-setup.sh)"
     ]
   }
 }
