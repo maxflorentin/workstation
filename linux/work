@@ -2811,11 +2811,70 @@ cmd_tracker_status() {
     done <<< "$clients"
 }
 
+# --- version ---
+# Reports the current dotfiles repo state on this device and how far it is from
+# `origin/main`, so you can spot devices that fell behind your WoW.
+cmd_version() {
+    local repo="$HOME/.dotfiles"
+    if [ ! -d "$repo/.git" ]; then
+        echo "version: $repo is not a git repo" >&2
+        exit 1
+    fi
+
+    local branch sha date dirty
+    branch=$(git -C "$repo" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "?")
+    sha=$(git -C "$repo" rev-parse --short HEAD 2>/dev/null || echo "?")
+    date=$(git -C "$repo" log -1 --format=%cd --date=iso-local 2>/dev/null || echo "?")
+    if [ -n "$(git -C "$repo" status --porcelain 2>/dev/null)" ]; then
+        dirty="yes"
+    else
+        dirty="no"
+    fi
+
+    echo "dotfiles version"
+    echo "  path:     $repo"
+    echo "  branch:   $branch"
+    echo "  sha:      $sha"
+    echo "  date:     $date"
+    echo "  dirty:    $dirty"
+
+    if git -C "$repo" fetch --quiet origin main 2>/dev/null; then
+        local ahead behind
+        ahead=$(git -C "$repo" rev-list --count origin/main..HEAD 2>/dev/null || echo "?")
+        behind=$(git -C "$repo" rev-list --count HEAD..origin/main 2>/dev/null || echo "?")
+        echo "  vs origin/main:  ahead $ahead, behind $behind"
+        if [ "$behind" != "0" ] && [ "$behind" != "?" ]; then
+            echo ""
+            echo "Device out of date. Sync with: git -C $repo pull && $repo/install"
+        fi
+    else
+        echo "  vs origin/main:  (fetch failed; check network or repo remote)"
+    fi
+}
+
+# Hard dependency check — workmux is part of the WoW (drives tmux-layout via
+# the shared config). Diagnostic commands (help/version/legacy) bypass this so
+# you can still introspect a half-set-up device.
+_require_workmux() {
+    if command -v workmux >/dev/null 2>&1; then
+        return 0
+    fi
+    echo "work: workmux is required but not installed on this device" >&2
+    echo "  install:  brew install raine/workmux/workmux" >&2
+    echo "  or full:  brew bundle --file=~/.dotfiles/macos/Brewfile" >&2
+    echo "  bypass:   work version | work help | work legacy" >&2
+    exit 1
+}
+
 # --- help ---
 cmd_help() {
     echo "work - Manage freelance workspaces on Linux server (multi-user)"
     echo ""
+    echo "Requires: workmux (brew install raine/workmux/workmux). The tmux-layout"
+    echo "uses ~/.config/workmux/config.yaml as the single source of truth."
+    echo ""
     echo "Commands:"
+    echo "  work version                      Show dotfiles repo SHA vs origin/main"
     echo "  work doctor [client]              General workstation/client health checks"
     echo "  work compliance-doctor <client>   Check optional per-client compliance profile"
     echo "  work clamav-setup                 Install and initialize ClamAV"
@@ -2865,6 +2924,14 @@ cmd_help() {
 }
 
 case "${1:-}" in
+    version|help|legacy|"")
+        : ;;  # diagnostic commands skip the dep check
+    *)
+        _require_workmux ;;
+esac
+
+case "${1:-}" in
+    version)        cmd_version ;;
     connect)        shift; cmd_connect "$@" ;;
     clients)        cmd_clients ;;
     onboard)        shift; cmd_onboard "$@" ;;

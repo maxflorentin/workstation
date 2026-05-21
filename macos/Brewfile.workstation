@@ -16,6 +16,13 @@ brew "tree"
 brew "coreutils"
 brew "grep"
 brew "shellcheck"
+brew "tmux"
+brew "yq"
+brew "btop"
+
+# Workmux: opinionated git worktrees + tmux orchestration (drives tmux-layout via shared config)
+tap "raine/workmux"
+brew "raine/workmux/workmux"
 
 # Workstation access and encrypted config backup
 brew "age"

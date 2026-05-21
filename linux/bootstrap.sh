@@ -29,7 +29,7 @@ echo "[3/10] Installing core packages..."
 sudo apt-get install -y -qq \
     git curl wget unzip \
     build-essential cmake \
-    tmux htop \
+    tmux btop \
     openssh-server \
     age \
     jq ripgrep fd-find bat fzf eza autojump \
@@ -96,15 +96,37 @@ else
 fi
 
 # --- Starship prompt ---
-echo "[9/10] Installing Starship..."
+echo "[9/11] Installing Starship..."
 if ! command -v starship &>/dev/null; then
     curl -sS https://starship.rs/install.sh | sh -s -- -y
 else
     echo "  already installed"
 fi
 
+# --- Linuxbrew + workmux + yq ---
+# Workmux drives the tmux-layout via a shared YAML config (yq parses it).
+# Both are installed via Linuxbrew to keep the toolchain identical to the Mac.
+echo "[10/11] Installing Linuxbrew + workmux + yq..."
+if ! command -v brew &>/dev/null; then
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+fi
+
+# Make brew available for the rest of this script
+if [ -x /home/linuxbrew/.linuxbrew/bin/brew ]; then
+    eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+elif [ -x "$HOME/.linuxbrew/bin/brew" ]; then
+    eval "$("$HOME/.linuxbrew/bin/brew" shellenv)"
+fi
+
+if command -v brew &>/dev/null; then
+    brew tap raine/workmux 2>/dev/null || true
+    brew install yq raine/workmux/workmux
+else
+    echo "  WARNING: brew install failed; workmux/yq missing — work CLI will refuse to run"
+fi
+
 # --- Dotfiles ---
-echo "[10/10] Setting up dotfiles..."
+echo "[11/11] Setting up dotfiles..."
 
 if [ -d "$DOTFILES_DIR" ]; then
     echo "  pulling latest..."

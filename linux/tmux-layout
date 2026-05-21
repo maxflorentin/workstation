@@ -4,13 +4,27 @@
 # Usage: tmux-layout [project]
 #   project - fuzzy project name (e.g. "cdc" matches "spark-cdc")
 #
-# The client is derived from $USER (one Linux user per client).
-# Projects live under $HOME/ directly. The client profile is at ~/.clientrc.
+# The workspace window's pane layout is read from ~/.config/workmux/config.yaml
+# (the same config workmux uses for worktree windows). Single source of truth.
+# Extra utility windows (docker, htop) are appended.
 
 set -e
 
 PROJECT="${1:-}"
 CLIENTRC="$HOME/.clientrc"
+WORKMUX_CONFIG="$HOME/.config/workmux/config.yaml"
+
+# --- Dependency check ---
+if ! command -v yq >/dev/null 2>&1; then
+    echo "tmux-layout: yq is required to parse the workmux layout config" >&2
+    echo "  install: brew install yq" >&2
+    exit 1
+fi
+if [ ! -f "$WORKMUX_CONFIG" ]; then
+    echo "tmux-layout: missing $WORKMUX_CONFIG" >&2
+    echo "  run: ~/.dotfiles/install   (symlinks workstation/workmux.yaml)" >&2
+    exit 1
+fi
 
 # Resolve project directory.
 # Searches (in order): exact path in $HOME, exact path in $HOME/repos,
@@ -39,7 +53,7 @@ _pane_init() {
     local target="$1"
     shift
     tmux send-keys -t "$target" "source $CLIENTRC 2>/dev/null; clear" Enter
-    if [ $# -gt 0 ]; then
+    if [ $# -gt 0 ] && [ -n "$*" ]; then
         sleep 0.2
         tmux send-keys -t "$target" "$*" Enter
     fi
@@ -63,27 +77,72 @@ if tmux has-session -t "=$SESSION" 2>/dev/null; then
     exit 0
 fi
 
-# Window 1: workspace (3 panes)
+# --- Window 1: workspace (panes driven by workmux config) ---
+n=$(yq '.panes | length' "$WORKMUX_CONFIG")
+if ! [[ "$n" =~ ^[0-9]+$ ]] || [ "$n" -lt 1 ]; then
+    echo "tmux-layout: no panes defined in $WORKMUX_CONFIG" >&2
+    exit 1
+fi
+
 tmux new-session -d -s "$SESSION" -c "$WORK_DIR" -n "workspace"
 sleep 0.3
 
-tmux split-window -h -t "$SESSION:workspace" -c "$WORK_DIR" -l 35%
-tmux split-window -v -t "$SESSION:workspace.1" -c "$WORK_DIR" -l 40%
+# Track pane ids by their index in the workmux config so `target:` can reference
+# any previously created pane (matching workmux's own semantics).
+declare -a PANE_IDS
+PANE_IDS[0]=$(tmux display-message -t "$SESSION:workspace" -p "#{pane_id}")
 
-# Init all panes
-_pane_init "$SESSION:workspace.0" "ls -la"
-_pane_init "$SESSION:workspace.1" "git log --oneline --graph -15 2>/dev/null || ls"
-_pane_init "$SESSION:workspace.2" "git status 2>/dev/null || echo 'No git repo'"
+for ((i=1; i<n; i++)); do
+    split=$(yq ".panes[$i].split // \"\"" "$WORKMUX_CONFIG")
+    target_idx=$(yq ".panes[$i].target // \"_\"" "$WORKMUX_CONFIG")
+    pct=$(yq ".panes[$i].percentage // \"_\"" "$WORKMUX_CONFIG")
 
-tmux select-pane -t "$SESSION:workspace.0"
+    if [ "$target_idx" = "_" ]; then
+        target_idx=$((i-1))
+    fi
+    target_pid="${PANE_IDS[$target_idx]}"
+    if [ -z "$target_pid" ]; then
+        echo "tmux-layout: pane $i targets unknown pane index $target_idx" >&2
+        exit 1
+    fi
 
-# Window 2: docker
+    case "$split" in
+        horizontal) sflag="-h" ;;
+        vertical) sflag="-v" ;;
+        *) echo "tmux-layout: pane $i has invalid split: '$split'" >&2; exit 1 ;;
+    esac
+
+    if [ "$pct" != "_" ] && [ -n "$pct" ]; then
+        new_pid=$(tmux split-window "$sflag" -t "$target_pid" -c "$WORK_DIR" -p "$pct" -P -F '#{pane_id}')
+    else
+        new_pid=$(tmux split-window "$sflag" -t "$target_pid" -c "$WORK_DIR" -P -F '#{pane_id}')
+    fi
+    PANE_IDS[$i]="$new_pid"
+done
+
+# Init pane commands (after all splits so layout is settled)
+for ((i=0; i<n; i++)); do
+    cmd=$(yq ".panes[$i].command // \"\"" "$WORKMUX_CONFIG")
+    _pane_init "${PANE_IDS[$i]}" "$cmd"
+done
+
+# Focus the pane marked `focus: true`, fallback to pane 0
+focused_pid="${PANE_IDS[0]}"
+for ((i=0; i<n; i++)); do
+    if [ "$(yq ".panes[$i].focus // false" "$WORKMUX_CONFIG")" = "true" ]; then
+        focused_pid="${PANE_IDS[$i]}"
+        break
+    fi
+done
+tmux select-pane -t "$focused_pid"
+
+# --- Window 2: docker ---
 tmux new-window -t "$SESSION" -n "docker" -c "$WORK_DIR"
 _pane_init "$SESSION:docker" "docker ps 2>/dev/null || echo 'No containers running'"
 
-# Window 3: htop
-tmux new-window -t "$SESSION" -n "htop" -c "$WORK_DIR"
-tmux send-keys -t "$SESSION:htop" "htop" Enter
+# --- Window 3: btop ---
+tmux new-window -t "$SESSION" -n "btop" -c "$WORK_DIR"
+tmux send-keys -t "$SESSION:btop" "btop" Enter
 
 # Go back to workspace window
 tmux select-window -t "$SESSION:workspace"

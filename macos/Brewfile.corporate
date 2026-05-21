@@ -30,6 +30,13 @@ brew "gh"
 # Python
 brew "uv"
 
+# tmux + workmux (opinionated git worktrees + tmux; drives tmux-layout via shared config)
+brew "tmux"
+brew "yq"
+brew "btop"
+tap "raine/workmux"
+brew "raine/workmux/workmux"
+
 # Kubernetes (uncomment if needed)
 # brew "kubernetes-cli"
 # brew "kustomize"

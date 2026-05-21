@@ -1,0 +1,17 @@
+# Canonical workmux config (single source of truth).
+# Symlinked to ~/.config/workmux/config.yaml by ./install.
+# Used by:
+#   - workmux itself (worktree windows)
+#   - linux/tmux-layout (default workspace session, via yq)
+
+nerdfont: true
+
+panes:
+  - command: tree -L 2
+  - split: horizontal
+    percentage: 70
+    focus: true
+  - command: git status
+    split: vertical
+    target: 0
+    percentage: 30

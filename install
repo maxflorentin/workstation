@@ -27,6 +27,10 @@ git config --global core.excludesfile "$HOME/.gitignore_global"
 mkdir -p "$HOME/.config"
 ln -sfn "$DOTFILES/editors/nvim" "$HOME/.config/nvim"
 
+# workmux (shared layout config; consumed by workmux and by linux/tmux-layout via yq)
+mkdir -p "$HOME/.config/workmux"
+ln -sfn "$DOTFILES/workstation/workmux.yaml" "$HOME/.config/workmux/config.yaml"
+
 # Scripts → ~/.local/bin
 mkdir -p "$HOME/.local/bin"
 
