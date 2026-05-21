@@ -12,8 +12,8 @@
 set -e
 
 DEFAULT_DOTFILES_REPO="https://github.com/maxflorentin/workstation.git"
-PI_HOST="${WORKSTATION_HOST:-${WORK_PI_HOST:-workstation}}"
-PI_USER="${WORKSTATION_USER:-${WORK_PI_USER:-max}}"
+WORKSTATION_HOSTNAME="${WORKSTATION_HOST:-${WORK_PI_HOST:-workstation}}"
+WORKSTATION_ADMIN_USER="${WORKSTATION_USER:-${WORK_PI_USER:-max}}"
 DOTFILES_REPO="${WORKSTATION_DOTFILES_REPO:-${WORK_DOTFILES_REPO:-$DEFAULT_DOTFILES_REPO}}"
 
 _is_local_workstation() {
@@ -23,8 +23,8 @@ _is_local_workstation() {
     host_short="$(hostname -s 2>/dev/null || hostname)"
     host_full="$(hostname 2>/dev/null || true)"
 
-    [ "$PI_HOST" = "localhost" ] || [ "$PI_HOST" = "127.0.0.1" ] || \
-    [ "$PI_HOST" = "$host_short" ] || [ "$PI_HOST" = "$host_full" ]
+    [ "$WORKSTATION_HOSTNAME" = "localhost" ] || [ "$WORKSTATION_HOSTNAME" = "127.0.0.1" ] || \
+    [ "$WORKSTATION_HOSTNAME" = "$host_short" ] || [ "$WORKSTATION_HOSTNAME" = "$host_full" ]
 }
 
 _validate_client_name() {
@@ -35,12 +35,12 @@ _validate_client_name() {
     fi
 }
 
-# --- Admin SSH helpers (run as $PI_USER, typically "max") ---
+# --- Admin SSH helpers (run as $WORKSTATION_ADMIN_USER, typically "max") ---
 _ssh() {
     if _is_local_workstation; then
         bash -lc "$*"
     else
-        ssh -t "$PI_USER@$PI_HOST" "$@"
+        ssh -t "$WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME" "$@"
     fi
 }
 
@@ -48,7 +48,7 @@ _ssh_tty() {
     if _is_local_workstation; then
         bash -lc "$*"
     else
-        ssh -tt "$PI_USER@$PI_HOST" "$@"
+        ssh -tt "$WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME" "$@"
     fi
 }
 
@@ -56,7 +56,7 @@ _ssh_quiet() {
     if _is_local_workstation; then
         bash -lc "$*" 2>/dev/null
     else
-        ssh -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=3 "$PI_USER@$PI_HOST" "$@" 2>/dev/null
+        ssh -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=3 "$WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME" "$@" 2>/dev/null
     fi
 }
 
@@ -64,11 +64,11 @@ _ssh_data() {
     if _is_local_workstation; then
         bash -lc "$*"
     else
-        ssh -T -o ClearAllForwardings=yes "$PI_USER@$PI_HOST" "$@"
+        ssh -T -o ClearAllForwardings=yes "$WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME" "$@"
     fi
 }
 
-# --- Client SSH helpers (run as <client>@<pi>) ---
+# --- Client SSH helpers (run as <client>@<workstation>) ---
 _run_as_local_client() {
     local u="$1"
     shift
@@ -88,7 +88,7 @@ _ssh_as() {
     if _is_local_workstation; then
         _run_as_local_client "$u" "$@"
     else
-        ssh -t "$u@$PI_HOST" "$@"
+        ssh -t "$u@$WORKSTATION_HOSTNAME" "$@"
     fi
 }
 
@@ -98,7 +98,7 @@ _ssh_as_tty() {
     if _is_local_workstation; then
         _run_as_local_client "$u" "$@"
     else
-        ssh -tt "$u@$PI_HOST" "$@"
+        ssh -tt "$u@$WORKSTATION_HOSTNAME" "$@"
     fi
 }
 
@@ -108,7 +108,7 @@ _ssh_as_quiet() {
     if _is_local_workstation; then
         _run_as_local_client "$u" "$@" 2>/dev/null
     else
-        ssh -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=3 "$u@$PI_HOST" "$@" 2>/dev/null
+        ssh -o BatchMode=yes -o NumberOfPasswordPrompts=0 -o ConnectTimeout=3 "$u@$WORKSTATION_HOSTNAME" "$@" 2>/dev/null
     fi
 }
 
@@ -118,14 +118,14 @@ _ssh_as_data() {
     if _is_local_workstation; then
         _run_as_local_client "$u" "$@"
     else
-        ssh -T -o ClearAllForwardings=yes "$u@$PI_HOST" "$@"
+        ssh -T -o ClearAllForwardings=yes "$u@$WORKSTATION_HOSTNAME" "$@"
     fi
 }
 
 # List client users on the workstation (real humans with /home and a login shell,
 # excluding the admin user and known system helpers like ecryptfs's encryption_user).
 _list_clients() {
-    _ssh_quiet "getent passwd | awk -F: '\$3>=1000 && \$1!=\"$PI_USER\" && \$1!=\"nobody\" && \$1!=\"encryption_user\" && \$7 !~ /(nologin|false)\$/ && \$6 ~ /^\\/home\\// {print \$1}'"
+    _ssh_quiet "getent passwd | awk -F: '\$3>=1000 && \$1!=\"$WORKSTATION_ADMIN_USER\" && \$1!=\"nobody\" && \$1!=\"encryption_user\" && \$7 !~ /(nologin|false)\$/ && \$6 ~ /^\\/home\\// {print \$1}'"
 }
 
 _truthy() {
@@ -296,7 +296,7 @@ cmd_user_create() {
     echo ""
 
     # Phase 1: admin-side ops (useradd, SSH keys, dotfiles clone + install)
-    _ssh_data "DOTFILES_REPO='$DOTFILES_REPO' PI_USER='$PI_USER' CLIENT='$client' WORK_CLIENT_DOCKER='${WORK_CLIENT_DOCKER:-0}' bash -s" <<'REMOTE'
+    _ssh_data "DOTFILES_REPO='$DOTFILES_REPO' WORKSTATION_ADMIN_USER='$WORKSTATION_ADMIN_USER' CLIENT='$client' WORK_CLIENT_DOCKER='${WORK_CLIENT_DOCKER:-0}' bash -s" <<'REMOTE'
 set -e
 
 SUDO=""
@@ -306,7 +306,7 @@ elif sudo -n true >/dev/null 2>&1; then
     SUDO="sudo -n"
 else
     echo "user-create requires sudo on the workstation" >&2
-    echo "run: ssh $PI_USER@$(hostname -s) 'sudo ~/.local/bin/work user-create $CLIENT'" >&2
+    echo "run: ssh $WORKSTATION_ADMIN_USER@$(hostname -s) 'sudo ~/.local/bin/work user-create $CLIENT'" >&2
     exit 1
 fi
 
@@ -352,14 +352,14 @@ fi
 # Seed SSH authorized_keys (ecryptfs-compatible path used by sshd_config)
 run_root mkdir -p /etc/ssh/authorized_keys
 if ! run_root test -f "/etc/ssh/authorized_keys/$CLIENT"; then
-    if run_root test -f "/etc/ssh/authorized_keys/$PI_USER"; then
-        run_root cp "/etc/ssh/authorized_keys/$PI_USER" "/etc/ssh/authorized_keys/$CLIENT"
-    elif [ -f "/home/$PI_USER/.ssh/authorized_keys" ]; then
-        run_root cp "/home/$PI_USER/.ssh/authorized_keys" "/etc/ssh/authorized_keys/$CLIENT"
+    if run_root test -f "/etc/ssh/authorized_keys/$WORKSTATION_ADMIN_USER"; then
+        run_root cp "/etc/ssh/authorized_keys/$WORKSTATION_ADMIN_USER" "/etc/ssh/authorized_keys/$CLIENT"
+    elif [ -f "/home/$WORKSTATION_ADMIN_USER/.ssh/authorized_keys" ]; then
+        run_root cp "/home/$WORKSTATION_ADMIN_USER/.ssh/authorized_keys" "/etc/ssh/authorized_keys/$CLIENT"
     fi
     run_root chmod 644 "/etc/ssh/authorized_keys/$CLIENT"
     run_root chown root:root "/etc/ssh/authorized_keys/$CLIENT"
-    echo "  authorized_keys seeded from $PI_USER"
+    echo "  authorized_keys seeded from $WORKSTATION_ADMIN_USER"
 fi
 
 # Clone dotfiles as the client user.
@@ -409,7 +409,7 @@ REMOTE
     echo ""
     echo "Connect with:           work connect $client"
     echo "Generate SSH key:       work ssh-keygen $client"
-    echo "Encrypt home (compliance): ssh $client@$PI_HOST sudo ecryptfs-migrate-home -u $client"
+    echo "Encrypt home (compliance): ssh $client@$WORKSTATION_HOSTNAME sudo ecryptfs-migrate-home -u $client"
 }
 
 # --- clientrc-init ---
@@ -433,7 +433,7 @@ cmd_clientrc_init() {
 
     _validate_client_name "$client"
 
-    _ssh_data "CLIENT='$client' FORCE='$force' PI_USER='$PI_USER' bash -s" <<'REMOTE'
+    _ssh_data "CLIENT='$client' FORCE='$force' WORKSTATION_ADMIN_USER='$WORKSTATION_ADMIN_USER' bash -s" <<'REMOTE'
 set -e
 
 SUDO=""
@@ -443,7 +443,7 @@ elif sudo -n true >/dev/null 2>&1; then
     SUDO="sudo -n"
 else
     echo "clientrc-init requires sudo on the workstation" >&2
-    echo "run: ssh $PI_USER@$(hostname -s) 'sudo ~/.local/bin/work clientrc-init $CLIENT'" >&2
+    echo "run: ssh $WORKSTATION_ADMIN_USER@$(hostname -s) 'sudo ~/.local/bin/work clientrc-init $CLIENT'" >&2
     exit 1
 fi
 
@@ -468,7 +468,7 @@ fi
 
 template=""
 for candidate in \
-    "/home/$PI_USER/.dotfiles/templates/clientrc.example" \
+    "/home/$WORKSTATION_ADMIN_USER/.dotfiles/templates/clientrc.example" \
     "/home/$CLIENT/.dotfiles/templates/clientrc.example"
 do
     if run_root test -f "$candidate"; then
@@ -519,7 +519,7 @@ cmd_clientrc_doctor() {
     _validate_client_name "$client"
 
     echo "clientrc doctor"
-    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  workstation: $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
     echo "  client:      $client"
     echo ""
 
@@ -634,11 +634,11 @@ cmd_client_profile() {
     _validate_client_name "$client"
 
     echo "client profile"
-    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  workstation: $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
     echo "  client:      $client"
     echo ""
 
-    _ssh_data "CLIENT='$client' PI_USER='$PI_USER' bash -s" <<'REMOTE'
+    _ssh_data "CLIENT='$client' WORKSTATION_ADMIN_USER='$WORKSTATION_ADMIN_USER' bash -s" <<'REMOTE'
 set -e
 
 path="/home/$CLIENT/.clientrc"
@@ -752,10 +752,10 @@ REMOTE
 # Lists client users with sanitized operational state.
 cmd_clients() {
     echo "clients"
-    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  workstation: $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
     echo ""
 
-    _ssh_data "PI_USER='$PI_USER' bash -s" <<'REMOTE'
+    _ssh_data "WORKSTATION_ADMIN_USER='$WORKSTATION_ADMIN_USER' bash -s" <<'REMOTE'
 set -e
 
 SUDO=""
@@ -787,7 +787,7 @@ read_key() {
     ' "$path"
 }
 
-clients=$(getent passwd | awk -F: -v admin="$PI_USER" '$3>=1000 && $1!=admin && $1!="nobody" && $1!="encryption_user" && $7 !~ /(nologin|false)$/ && $6 ~ /^\/home\// {print $1}' | sort)
+clients=$(getent passwd | awk -F: -v admin="$WORKSTATION_ADMIN_USER" '$3>=1000 && $1!=admin && $1!="nobody" && $1!="encryption_user" && $7 !~ /(nologin|false)$/ && $6 ~ /^\/home\// {print $1}' | sort)
 
 if [ -z "$clients" ]; then
     echo "(no client users found)"
@@ -882,7 +882,7 @@ cmd_onboard() {
 
     cat <<EOF
 client onboarding checklist
-  workstation: $PI_USER@$PI_HOST
+  workstation: $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME
   client:      $client
 
 == Create / baseline ==
@@ -926,7 +926,7 @@ client onboarding checklist
     sudo ~/.local/bin/work compliance-doctor $client
 
 [ ] Wazuh/syscheck, when used for a client-specific profile, must include only
-    /home/$client and must not scan /home, /home/$PI_USER, /etc, /usr, /bin,
+    /home/$client and must not scan /home, /home/$WORKSTATION_ADMIN_USER, /etc, /usr, /bin,
     /sbin, or /boot.
 
 == Secrets and keys ==
@@ -977,7 +977,7 @@ cmd_vpn_up() {
     if ! _ssh_quiet "sudo -n true"; then
         echo "vpn-up is a legacy WireGuard command and requires sudo on the workstation" >&2
         echo "preferred: work tailscale-setup $client" >&2
-        echo "run legacy: ssh $PI_USER@$PI_HOST 'sudo wg-quick up -- $client'" >&2
+        echo "run legacy: ssh $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME 'sudo wg-quick up -- $client'" >&2
         exit 1
     fi
 
@@ -1009,7 +1009,7 @@ cmd_vpn_down() {
 
     if ! _ssh_quiet "sudo -n true"; then
         echo "vpn-down is a legacy WireGuard command and requires sudo on the workstation" >&2
-        echo "run legacy: ssh $PI_USER@$PI_HOST 'sudo wg-quick down -- $client'" >&2
+        echo "run legacy: ssh $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME 'sudo wg-quick down -- $client'" >&2
         exit 1
     fi
 
@@ -1045,7 +1045,7 @@ cmd_tailscale_doctor() {
     [ -n "$client" ] && _validate_client_name "$client"
 
     echo "tailscale doctor"
-    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  workstation: $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
     [ -n "$client" ] && echo "  client:      $client"
     echo ""
 
@@ -1069,7 +1069,7 @@ cmd_tailscale_doctor() {
     echo ""
     echo "== Workstation personal =="
     if ! _ssh_quiet "echo ok" >/dev/null; then
-        _fail "workstation unreachable at $PI_HOST"
+        _fail "workstation unreachable at $WORKSTATION_HOSTNAME"
     else
         _ok "ssh reachable"
         local shell_output
@@ -1181,7 +1181,7 @@ cmd_tailscale_setup() {
         _ssh_tty "sudo -n ~/.dotfiles/workstation/tailscale-client-setup '$client'"
     else
         echo "tailscale-setup requires sudo on the workstation" >&2
-        echo "run: ssh $PI_USER@$PI_HOST 'sudo ~/.local/bin/work tailscale-setup $client'" >&2
+        echo "run: ssh $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME 'sudo ~/.local/bin/work tailscale-setup $client'" >&2
         exit 1
     fi
 }
@@ -1207,7 +1207,7 @@ cmd_compliance_doctor() {
     _validate_client_name "$client"
 
     echo "compliance doctor"
-    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  workstation: $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
     echo "  client:      $client"
     echo ""
 
@@ -1337,11 +1337,11 @@ cmd_compliance_doctor() {
 }
 
 cmd_clamav_setup() {
-    echo "Installing and initializing ClamAV on $PI_HOST..."
+    echo "Installing and initializing ClamAV on $WORKSTATION_HOSTNAME..."
     echo "This requires sudo on the workstation."
     if ! _ssh_quiet "sudo -n true"; then
         echo "clamav-setup requires sudo on the workstation" >&2
-        echo "run: ssh $PI_USER@$PI_HOST 'sudo ~/.local/bin/work clamav-setup'" >&2
+        echo "run: ssh $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME 'sudo ~/.local/bin/work clamav-setup'" >&2
         exit 1
     fi
 
@@ -1389,12 +1389,12 @@ cmd_backup_doctor() {
     _fail() { echo "fail $*"; failures=$((failures + 1)); }
 
     echo "backup doctor"
-    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  workstation: $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
     echo ""
 
     echo "== Reachability =="
     if ! _ssh_quiet "echo ok" >/dev/null; then
-        _fail "ssh unreachable at $PI_HOST"
+        _fail "ssh unreachable at $WORKSTATION_HOSTNAME"
         echo ""
         echo "backup doctor failed: $failures failure(s), $warnings warning(s)"
         exit 1
@@ -1412,10 +1412,10 @@ cmd_backup_doctor() {
     echo ""
     echo "== Core Data =="
     local admin_home
-    admin_home=$(_ssh_quiet "getent passwd '$PI_USER' | cut -d: -f6" || true)
+    admin_home=$(_ssh_quiet "getent passwd '$WORKSTATION_ADMIN_USER' | cut -d: -f6" || true)
     if [ -z "$admin_home" ]; then
-        _fail "could not resolve admin home for $PI_USER"
-        admin_home="/home/$PI_USER"
+        _fail "could not resolve admin home for $WORKSTATION_ADMIN_USER"
+        admin_home="/home/$WORKSTATION_ADMIN_USER"
     fi
     if _ssh_quiet "test -d '$admin_home/.dotfiles' && test -d '$admin_home/.dotfiles/.git'"; then
         _ok "admin dotfiles repo exists"
@@ -1578,7 +1578,7 @@ cmd_config_backup() {
     _validate_client_name "$client"
 
     echo "config backup"
-    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  workstation: $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
     echo "  client:      $client"
     echo "  target:      $dest"
     [ "$dry_run" -eq 1 ] && echo "  mode:        dry-run"
@@ -1586,7 +1586,7 @@ cmd_config_backup() {
 
     if ! _is_local_workstation; then
         _fail "config-backup must run on the workstation so root-owned files stay local"
-        echo "     ssh $PI_USER@$PI_HOST"
+        echo "     ssh $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
         echo "     sudo ~/.local/bin/work config-backup ${dry_prefix}$client /path/to/private-config-backup '<age-recipient>'"
         exit 1
     fi
@@ -1868,13 +1868,13 @@ cmd_doctor() {
     [ -n "$client" ] && _validate_client_name "$client"
 
     echo "workstation doctor"
-    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  workstation: $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
     [ -n "$client" ] && echo "  client:      $client"
     echo ""
 
     echo "== Reachability =="
     if ! _ssh_quiet "echo ok" >/dev/null; then
-        _fail "ssh unreachable at $PI_HOST"
+        _fail "ssh unreachable at $WORKSTATION_HOSTNAME"
         echo ""
         echo "workstation doctor failed: $failures failure(s), $warnings warning(s)"
         exit 1
@@ -1893,7 +1893,7 @@ cmd_doctor() {
     else
         _ok "interactive zsh starts cleanly"
     fi
-    if _ssh_quiet "id -nG '$PI_USER' | tr ' ' '\n' | grep -qx sudo"; then
+    if _ssh_quiet "id -nG '$WORKSTATION_ADMIN_USER' | tr ' ' '\n' | grep -qx sudo"; then
         _ok "admin user is in sudo group"
     else
         _warn "admin user is not in sudo group"
@@ -1906,8 +1906,8 @@ cmd_doctor() {
     fi
 
     local admin_home
-    admin_home=$(_ssh_quiet "getent passwd '$PI_USER' | cut -d: -f6" || true)
-    [ -z "$admin_home" ] && admin_home="/home/$PI_USER"
+    admin_home=$(_ssh_quiet "getent passwd '$WORKSTATION_ADMIN_USER' | cut -d: -f6" || true)
+    [ -z "$admin_home" ] && admin_home="/home/$WORKSTATION_ADMIN_USER"
 
     echo ""
     echo "== Core commands =="
@@ -2139,7 +2139,7 @@ REMOTE
 # --- status ---
 cmd_status() {
     if ! _ssh_quiet "echo ok" >/dev/null; then
-        echo "Workstation is offline or unreachable at $PI_HOST"
+        echo "Workstation is offline or unreachable at $WORKSTATION_HOSTNAME"
         exit 1
     fi
 
@@ -2175,8 +2175,8 @@ cmd_sync() {
     _validate_client_name "$client"
 
     rsync -avz --exclude '.git' --exclude 'node_modules' --exclude '.venv' --exclude '__pycache__' \
-        "$dir/" "$client@$PI_HOST:~/$target/"
-    echo "Synced to $client@$PI_HOST:~/$target/"
+        "$dir/" "$client@$WORKSTATION_HOSTNAME:~/$target/"
+    echo "Synced to $client@$WORKSTATION_HOSTNAME:~/$target/"
 }
 
 # --- destroy ---
@@ -2200,7 +2200,7 @@ cmd_destroy() {
         exit 0
     fi
 
-    _ssh_data "CLIENT='$client' PI_USER='$PI_USER' bash -s" <<'REMOTE'
+    _ssh_data "CLIENT='$client' WORKSTATION_ADMIN_USER='$WORKSTATION_ADMIN_USER' bash -s" <<'REMOTE'
 set -e
 
 SUDO=""
@@ -2210,7 +2210,7 @@ elif sudo -n true >/dev/null 2>&1; then
     SUDO="sudo -n"
 else
     echo "destroy requires sudo on the workstation" >&2
-    echo "run: ssh $PI_USER@$(hostname -s) 'sudo ~/.local/bin/work destroy $CLIENT'" >&2
+    echo "run: ssh $WORKSTATION_ADMIN_USER@$(hostname -s) 'sudo ~/.local/bin/work destroy $CLIENT'" >&2
     exit 1
 fi
 
@@ -2294,17 +2294,18 @@ cmd_browse() {
 
     if ! lsof -i ":$proxy_port" &>/dev/null; then
         echo "Starting SOCKS proxy for $client on port $proxy_port..."
-        ssh -D "127.0.0.1:$proxy_port" -N -f "$PI_USER@$PI_HOST"
+        ssh -D "127.0.0.1:$proxy_port" -N -f "$WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
     fi
 
     echo "Opening Chrome for client '$client'..."
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
         --proxy-server="socks5://127.0.0.1:$proxy_port" \
-        --host-resolver-rules="MAP * ~NOTFOUND , EXCLUDE 127.0.0.1" \
+        --host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE 127.0.0.1" \
         --user-data-dir="$chrome_dir" \
         --no-first-run \
         &>/dev/null &
 
+    echo "Chrome may show a command-line flag warning; that is the DNS leak guard, not a proxy failure."
     echo "Chrome running with workstation network (proxy :$proxy_port). Stop with: work browse-stop $client"
 }
 
@@ -2354,7 +2355,7 @@ cmd_agvty() {
     fi
 
     echo "Launching Antigravity for $client via X11..."
-    ssh -Y "$client@$PI_HOST" "antigravity" &>/dev/null &
+    ssh -Y "$client@$WORKSTATION_HOSTNAME" "antigravity" &>/dev/null &
     echo "Antigravity running (X11 → Mac). Close the app window to stop."
 }
 
@@ -2388,7 +2389,7 @@ cmd_health() {
 
     if ! _ssh_quiet "echo ok" >/dev/null; then
         osascript -e 'display notification "Workstation is OFFLINE" with title "work health" sound name "Basso"' 2>/dev/null
-        echo "OFFLINE - workstation unreachable at $PI_HOST"
+        echo "OFFLINE - workstation unreachable at $WORKSTATION_HOSTNAME"
         exit 1
     fi
 
@@ -2627,7 +2628,7 @@ cmd_tracker_doctor() {
     [ -n "$client" ] && _validate_client_name "$client"
 
     echo "tracker doctor"
-    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  workstation: $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
     [ -n "$client" ] && echo "  client:      $client"
     echo ""
 
@@ -2643,7 +2644,7 @@ cmd_tracker_doctor() {
         echo "warn work-tracker missing on Mac"
     fi
 
-    _ssh_data "CLIENT='$client' PI_USER='$PI_USER' bash -s" <<REMOTE
+    _ssh_data "CLIENT='$client' WORKSTATION_ADMIN_USER='$WORKSTATION_ADMIN_USER' bash -s" <<REMOTE
 $_tracker_remote_script
 failures=0
 warnings=0
@@ -2665,7 +2666,7 @@ if [ -n "\$CLIENT" ]; then
         fail "client user does not exist: \$CLIENT"
     fi
 else
-    clients=\$(getent passwd | awk -F: -v admin="\$PI_USER" '\$3>=1000 && \$1!=admin && \$1!="nobody" && \$1!="encryption_user" && \$7 !~ /(nologin|false)\$/ && \$6 ~ /^\\/home\\// {print \$1}' | sort)
+    clients=\$(getent passwd | awk -F: -v admin="\$WORKSTATION_ADMIN_USER" '\$3>=1000 && \$1!=admin && \$1!="nobody" && \$1!="encryption_user" && \$7 !~ /(nologin|false)\$/ && \$6 ~ /^\\/home\\// {print \$1}' | sort)
     if [ -z "\$clients" ]; then
         warn "no client users found"
     else
@@ -2697,7 +2698,7 @@ cmd_tracker_repair() {
     [ "$client" = "--all" ] || _validate_client_name "$client"
 
     echo "tracker repair"
-    echo "  workstation: $PI_USER@$PI_HOST"
+    echo "  workstation: $WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
     if [ "$client" = "--all" ]; then
         echo "  scope:       all clients"
     else
@@ -2705,7 +2706,7 @@ cmd_tracker_repair() {
     fi
     echo ""
 
-    _ssh_data "CLIENT='$client' PI_USER='$PI_USER' bash -s" <<'REMOTE'
+    _ssh_data "CLIENT='$client' WORKSTATION_ADMIN_USER='$WORKSTATION_ADMIN_USER' bash -s" <<'REMOTE'
 set -e
 
 if ! sudo -n true >/dev/null 2>&1; then
@@ -2756,7 +2757,7 @@ repair_user() {
 }
 
 if [ "$CLIENT" = "--all" ]; then
-    clients=$(getent passwd | awk -F: -v admin="$PI_USER" '$3>=1000 && $1!=admin && $1!="nobody" && $1!="encryption_user" && $7 !~ /(nologin|false)$/ && $6 ~ /^\/home\// {print $1}' | sort)
+    clients=$(getent passwd | awk -F: -v admin="$WORKSTATION_ADMIN_USER" '$3>=1000 && $1!=admin && $1!="nobody" && $1!="encryption_user" && $7 !~ /(nologin|false)$/ && $6 ~ /^\/home\// {print $1}' | sort)
     if [ -z "$clients" ]; then
         echo "warn no client users found"
         exit 0

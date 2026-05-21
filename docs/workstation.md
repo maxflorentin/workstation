@@ -66,6 +66,10 @@ and encryption.
 `work browse <client>` starts a local SOCKS proxy to the workstation and opens
 an isolated Chrome profile for that client.
 
+Chrome may show an unsupported command-line flag warning for
+`--host-resolver-rules`. That flag is the DNS leak guard for the SOCKS session,
+not a proxy failure.
+
 For one-off sessions:
 
 ```bash
@@ -113,7 +117,7 @@ Preferred environment variables:
 | `WORKSTATION_USER` | `max` | Admin user on the workstation |
 | `WORKSTATION_DOTFILES_REPO` | current GitHub repo | Repo cloned into new client users |
 
-Legacy names still work while the repo migrates:
+Legacy names still work for compatibility:
 `WORK_PI_HOST`, `WORK_PI_USER`, `WORK_DOTFILES_REPO`.
 
 ## Repository Identity
