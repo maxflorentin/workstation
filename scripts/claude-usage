@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""
+Fetch Claude Code rate-limit utilisation from the Anthropic messages API,
+for use as a tmux status-bar source via the agent-usage-tmux plugin.
+
+Differences vs the plugin's upstream fetch_claude_usage.py:
+  - Reads OAuth from the macOS Keychain (Claude Code on macOS stores it there,
+    not in ~/.claude/.credentials.json).
+  - Supports any `representative-claim` returned by the API (five_hour,
+    seven_day, overage, ...), not just five_hour/seven_day.
+  - Caches results to /tmp for 60s so a 20s tmux refresh doesn't spam the API.
+
+Usage:
+  claude-usage              # prints remaining-budget percentage (0-100)
+  claude-usage --field reset_in   # prints seconds until reset
+
+Output is always a single integer; on any failure we print 0 so the tmux
+status bar degrades gracefully.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+
+KEYCHAIN_SERVICE = "Claude Code-credentials"
+MESSAGES_URL = "https://api.anthropic.com/v1/messages"
+CACHE_PATH = Path(f"/tmp/.claude-usage-cache.{os.getuid()}.json")
+CACHE_TTL_SECONDS = 60
+
+
+def read_token_from_keychain() -> str:
+    result = subprocess.run(
+        ["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-w"],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"keychain lookup failed: {result.stderr.strip()}")
+    payload = json.loads(result.stdout)
+    token = (payload.get("claudeAiOauth") or {}).get("accessToken")
+    if not token:
+        raise RuntimeError("claudeAiOauth.accessToken missing in keychain payload")
+    return token
+
+
+def fetch_headers(token: str) -> dict[str, str]:
+    body = json.dumps(
+        {
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 1,
+            "messages": [{"role": "user", "content": "0"}],
+        }
+    ).encode()
+    req = Request(
+        MESSAGES_URL,
+        data=body,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "anthropic-beta": "oauth-2025-04-20",
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(req, timeout=15) as resp:
+            return {k.lower(): v for k, v in resp.getheaders()}
+    except HTTPError as exc:
+        headers = {k.lower(): v for k, v in exc.headers.items()}
+        if any(k.startswith("anthropic-ratelimit-unified") for k in headers):
+            return headers
+        raise
+    except URLError as exc:
+        raise RuntimeError(f"request failed: {exc}") from exc
+
+
+def parse_usage(headers: dict[str, str]) -> tuple[int, int]:
+    """Return (percent_remaining, reset_in_seconds)."""
+    claim = headers.get("anthropic-ratelimit-unified-representative-claim", "five_hour")
+    # Map claim → header prefix. Unknown claims fall back to the bare prefix.
+    prefix_map = {
+        "five_hour": "5h",
+        "seven_day": "7d",
+        "overage": "overage",
+    }
+    prefix = prefix_map.get(claim, claim)
+
+    util = headers.get(f"anthropic-ratelimit-unified-{prefix}-utilization")
+    reset = headers.get(f"anthropic-ratelimit-unified-{prefix}-reset")
+
+    # Fallbacks: some claims (overage) come back with no -utilization but a
+    # fallback-percentage, and a bare -reset.
+    if util is None:
+        util = headers.get("anthropic-ratelimit-unified-fallback-percentage")
+    if reset is None:
+        reset = headers.get("anthropic-ratelimit-unified-reset")
+
+    if util is None or reset is None:
+        raise RuntimeError(f"no usage headers for claim={claim!r}: {sorted(headers)}")
+
+    util_pct = max(0, min(100, 100 - round(float(util) * 100)))
+    reset_in = max(0, int(reset) - int(time.time()))
+    return util_pct, reset_in
+
+
+def load_cache() -> dict | None:
+    try:
+        data = json.loads(CACHE_PATH.read_text())
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+    if time.time() - data.get("ts", 0) > CACHE_TTL_SECONDS:
+        return None
+    return data
+
+
+def save_cache(percent: int, reset_at: int) -> None:
+    payload = {"ts": int(time.time()), "percent": percent, "reset_at": reset_at}
+    try:
+        CACHE_PATH.write_text(json.dumps(payload))
+    except OSError:
+        pass
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--field", choices=["percent", "reset_in"], default="percent")
+    args = parser.parse_args()
+
+    cached = load_cache()
+    if cached is not None:
+        percent = cached["percent"]
+        reset_in = max(0, cached["reset_at"] - int(time.time()))
+    else:
+        try:
+            token = read_token_from_keychain()
+            headers = fetch_headers(token)
+            percent, reset_in = parse_usage(headers)
+            save_cache(percent, int(time.time()) + reset_in)
+        except Exception as exc:
+            print("0")
+            print(f"claude-usage: {exc}", file=sys.stderr)
+            return
+
+    print(percent if args.field == "percent" else reset_in)
+
+
+if __name__ == "__main__":
+    main()
