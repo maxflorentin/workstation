@@ -5,9 +5,15 @@
 #   tmux-sessionizer             # fzf picker
 #   tmux-sessionizer dotfiles    # fuzzy match
 #   tmux-sessionizer ~/repo/app  # exact path
+#   tmux-sessionizer --cc ...    # attach in tmux control mode (iTerm2 native tabs)
 
 set -euo pipefail
 
+cc_mode=0
+if [ "${1:-}" = "--cc" ]; then
+    cc_mode=1
+    shift
+fi
 query="${1:-}"
 
 project_roots() {
@@ -84,6 +90,8 @@ fi
 
 if [ -n "${TMUX:-}" ]; then
     tmux switch-client -t "=$session_name"
+elif [ "$cc_mode" -eq 1 ]; then
+    tmux -CC attach -t "=$session_name"
 else
     tmux attach -t "=$session_name"
 fi

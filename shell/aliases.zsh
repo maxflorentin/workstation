@@ -81,3 +81,19 @@ alias evsw='envy-switch'
 
 # Claude / AI
 alias clau='claude -c'
+
+# Tmux / Workmux
+# wm: enter tmux in iTerm2 control mode for the current repo (or fuzzy match / fzf picker)
+wm() {
+    local repo
+    if [[ $# -gt 0 ]]; then
+        tmux-sessionizer --cc "$@"
+        return
+    fi
+    repo=$(git -C "$PWD" rev-parse --show-toplevel 2>/dev/null)
+    if [[ -n "$repo" ]]; then
+        tmux-sessionizer --cc "$(basename "$repo")"
+    else
+        tmux-sessionizer --cc
+    fi
+}
