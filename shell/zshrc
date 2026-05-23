@@ -23,9 +23,9 @@ setopt PUSHD_SILENT           # Don't print stack on pushd
 autoload -Uz compinit
 # Only regenerate completion dump once per day
 if [[ -n ~/.zcompdump(#qN.mh+24) ]]; then
-  compinit
+  compinit -i
 else
-  compinit -C
+  compinit -C -i
 fi
 zstyle ':completion:*' menu select
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'  # Case insensitive
@@ -60,10 +60,10 @@ source "$DOTFILES/shell/aliases.zsh"
 
 # tmux/tau project discovery
 if [[ -z "${TMUX_PROJECT_DIRS:-}" ]]; then
-    export TMUX_PROJECT_DIRS="$HOME/repos:$HOME/Developer:$HOME/Projects:$DOTFILES"
+    export TMUX_PROJECT_DIRS="$HOME/repos:$HOME/Developer:$DOTFILES"
 fi
 if [[ -z "${TAU_PROJECT_DIR:-}" ]]; then
-    for dir in "$HOME/Developer" "$HOME/repos" "$HOME/Projects"; do
+    for dir in "$HOME/repos" "$HOME/Developer"; do
         [[ -d "$dir" ]] && export TAU_PROJECT_DIR="$dir" && break
     done
 fi
@@ -136,8 +136,8 @@ export STARSHIP_CONFIG="$DOTFILES/shell/starship.toml"
 eval "$(starship init zsh)"
 
 # Google Cloud SDK
-if [ -f "$HOME/Projects/gcp/google-cloud-sdk/path.zsh.inc" ]; then . "$HOME/Projects/gcp/google-cloud-sdk/path.zsh.inc"; fi
-if [ -f "$HOME/Projects/gcp/google-cloud-sdk/completion.zsh.inc" ]; then . "$HOME/Projects/gcp/google-cloud-sdk/completion.zsh.inc"; fi
+if [ -f "$HOME/repos/gcp/google-cloud-sdk/path.zsh.inc" ]; then . "$HOME/repos/gcp/google-cloud-sdk/path.zsh.inc"; fi
+if [ -f "$HOME/repos/gcp/google-cloud-sdk/completion.zsh.inc" ]; then . "$HOME/repos/gcp/google-cloud-sdk/completion.zsh.inc"; fi
 
 # Client profile (per-user on the Pi; no-op on the Mac / admin users)
 [ -f "$HOME/.clientrc" ] && source "$HOME/.clientrc"

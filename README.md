@@ -29,6 +29,7 @@ workstation doctor
 ├── install              # Idempotent setup (detects OS)
 ├── workstation/         # Local workstation CLI, doctor, compatibility wrappers
 ├── shell/               # zshrc, aliases, path, starship
+├── tmux/                # Shared tmux config for Mac and Linux
 ├── macos/               # Brewfile, fresh.sh, defaults, mackup
 ├── linux/               # Linux workstation scripts and compatibility entrypoints
 ├── editors/             # nvim, vscode, iterm2
@@ -43,8 +44,9 @@ workstation doctor
 - Symlinks `.zshrc`, nvim config, gitignore
 - Links scripts to `~/.local/bin`
 - Links the `workstation` CLI
+- Links shared tmux config, TPM, and plugins
 - **macOS**: VS Code settings, mackup, work CLI
-- **Linux**: tmux config, tmux-layout, work CLI
+- **Linux**: tmux-layout, work CLI
 
 Safe to run multiple times.
 

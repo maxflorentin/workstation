@@ -56,7 +56,7 @@ TAILSCALE_IPV4_SAMPLE="100\\.72"\\.6\\.32
 TAILSCALE_IPV6_SAMPLE="fd7a:""115c"
 SANITIZED_PATTERNS="$NEXTDNS_SAMPLE|$TAILSCALE_IPV4_SAMPLE|$TAILSCALE_IPV6_SAMPLE"
 if rg -n "$SANITIZED_PATTERNS" \
-    "$ROOT/README.md" "$ROOT/docs" "$ROOT/linux" "$ROOT/scripts" "$ROOT/templates" "$ROOT/workstation" "$ROOT/tests" >/dev/null; then
+    "$ROOT/README.md" "$ROOT/docs" "$ROOT/linux" "$ROOT/scripts" "$ROOT/templates" "$ROOT/tmux" "$ROOT/workstation" "$ROOT/tests" >/dev/null; then
     fail "sanitization scan"
 else
     ok "sanitization scan"

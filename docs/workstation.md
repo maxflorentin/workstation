@@ -107,6 +107,16 @@ cannot read the Wazuh configuration, run it on the workstation with sudo:
 sudo ~/.local/bin/work compliance-doctor <client>
 ```
 
+## Shared tmux
+
+Mac and Linux users both symlink `~/.tmux.conf` to `tmux/tmux.conf` from this
+repo. `./install` also prepares TPM and declared plugins so the statusline,
+prefix bindings, pane navigation, and popups stay consistent across devices.
+
+The workstation may still open a different initial session layout through
+`linux/tmux-layout`. Treat that as workspace launch policy, not separate tmux
+preferences.
+
 ## Configuration
 
 Preferred environment variables:

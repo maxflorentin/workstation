@@ -26,7 +26,6 @@ project_roots() {
     printf '%s\n' \
         "$HOME/repos" \
         "$HOME/Developer" \
-        "$HOME/Projects" \
         "$HOME/.dotfiles"
 }
 

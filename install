@@ -50,11 +50,21 @@ done
 [ -f "$DOTFILES/workstation/workstation" ] && ln -sf "$DOTFILES/workstation/workstation" "$HOME/.local/bin/workstation"
 
 # tmux
-ln -sfn "$DOTFILES/linux/tmux.conf" "$HOME/.tmux.conf"
+mkdir -p "$HOME/.tmux/plugins"
+ln -sfn "$DOTFILES/tmux/tmux.conf" "$HOME/.tmux.conf"
 [ -f "$DOTFILES/scripts/tmux-sessionizer" ] && ln -sf "$DOTFILES/scripts/tmux-sessionizer" "$HOME/.local/bin/tmux-sessionizer"
+
 if [ ! -d "$HOME/.tmux/plugins/tpm" ]; then
-    git clone https://github.com/tmux-plugins/tpm "$HOME/.tmux/plugins/tpm"
-    echo "  tmux: tpm installed (run prefix+I inside tmux to install plugins)"
+    if git clone https://github.com/tmux-plugins/tpm "$HOME/.tmux/plugins/tpm"; then
+        echo "  tmux: tpm installed"
+    else
+        echo "  tmux: WARNING tpm install failed"
+    fi
+fi
+
+if [ -x "$HOME/.tmux/plugins/tpm/bin/install_plugins" ]; then
+    "$HOME/.tmux/plugins/tpm/bin/install_plugins" >/dev/null 2>&1 || \
+        echo "  tmux: WARNING plugin install failed"
 fi
 
 # npm: user-local prefix (lets non-root users `npm i -g` for MCP servers, etc.)
@@ -63,7 +73,7 @@ if [ ! -f "$HOME/.npmrc" ] || ! grep -q 'prefix=' "$HOME/.npmrc" 2>/dev/null; th
     echo "prefix=$HOME/.npm-global" >> "$HOME/.npmrc"
 fi
 
-echo "  common: shell, nvim, scripts, workstation cli, tmux, npm prefix"
+echo "  common: shell, nvim, scripts, workstation cli, shared tmux, npm prefix"
 
 # === macOS ===
 if [ "$OS" = "Darwin" ]; then
@@ -92,12 +102,6 @@ if [ "$OS" = "Linux" ]; then
         sudo -n cp "$DOTFILES/linux/ecryptfs-auto-mount" /usr/local/sbin/ecryptfs-auto-mount 2>/dev/null && \
         sudo -n chmod 755 /usr/local/sbin/ecryptfs-auto-mount 2>/dev/null && \
         echo "  linux: ecryptfs-auto-mount updated" || true
-    fi
-
-    # tmux: snazzy theme
-    if [ ! -f "$HOME/.tmux.snazzy.theme" ]; then
-        curl -sL https://raw.githubusercontent.com/ivnvxd/tmux-snazzy/main/.tmux.snazzy.theme -o "$HOME/.tmux.snazzy.theme"
-        echo "  linux: snazzy theme downloaded"
     fi
 
     # fastfetch (used by `work status`)
