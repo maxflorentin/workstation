@@ -10,6 +10,8 @@
 
 set -e
 
+export PATH="$HOME/.local/bin:$PATH"
+
 PROJECT="${1:-}"
 CLIENTRC="$HOME/.clientrc"
 WORKMUX_CONFIG="$HOME/.config/workmux/config.yaml"
@@ -17,7 +19,8 @@ WORKMUX_CONFIG="$HOME/.config/workmux/config.yaml"
 # --- Dependency check ---
 if ! command -v yq >/dev/null 2>&1; then
     echo "tmux-layout: yq is required to parse the workmux layout config" >&2
-    echo "  install: brew install yq" >&2
+    echo "  macOS: brew install yq" >&2
+    echo "  Linux user-local: install yq into ~/.local/bin" >&2
     exit 1
 fi
 if [ ! -f "$WORKMUX_CONFIG" ]; then

@@ -143,3 +143,13 @@ if [ -f "$HOME/repos/gcp/google-cloud-sdk/completion.zsh.inc" ]; then . "$HOME/r
 [ -f "$HOME/.clientrc" ] && source "$HOME/.clientrc"
 
 [ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
+
+# Startup: shells opened directly in ~/repos should land in tmux.
+# Disable for one shell with: TMUX_AUTO_ATTACH=0 zsh
+if [[ -o interactive ]] &&
+   [[ -z "${TMUX:-}" ]] &&
+   [[ "${TMUX_AUTO_ATTACH:-1}" != "0" ]] &&
+   [[ "$PWD" == "$HOME/repos" ]] &&
+   command -v tmux >/dev/null 2>&1; then
+    exec tmux new-session -A -s repos -c "$HOME/repos"
+fi

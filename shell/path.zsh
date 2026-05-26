@@ -8,6 +8,10 @@ add_to_path() {
 # Local bin (envy, scripts symlinks)
 add_to_path "$HOME/.local/bin"
 
+# Linuxbrew (workstation-wide tools installed under /home/linuxbrew)
+add_to_path "/home/linuxbrew/.linuxbrew/sbin"
+add_to_path "/home/linuxbrew/.linuxbrew/bin"
+
 # Dotfiles scripts
 add_to_path "$DOTFILES/scripts"
 
