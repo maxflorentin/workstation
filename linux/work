@@ -2329,11 +2329,11 @@ cmd_browse() {
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
         --proxy-server="socks5://127.0.0.1:$proxy_port" \
         --host-resolver-rules="MAP * ~NOTFOUND, EXCLUDE 127.0.0.1" \
+        --test-type \
         --user-data-dir="$chrome_dir" \
         --no-first-run \
         &>/dev/null &
 
-    echo "Chrome may show a command-line flag warning; that is the DNS leak guard, not a proxy failure."
     echo "Chrome running with workstation network (proxy :$proxy_port). Stop with: work browse-stop $client"
 }
 

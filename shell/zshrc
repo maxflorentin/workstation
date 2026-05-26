@@ -58,6 +58,10 @@ fi
 source "$DOTFILES/shell/path.zsh"
 source "$DOTFILES/shell/aliases.zsh"
 
+if command -v brew >/dev/null 2>&1; then
+    HOMEBREW_PREFIX="${HOMEBREW_PREFIX:-$(brew --prefix 2>/dev/null)}"
+fi
+
 # tmux/tau project discovery
 if [[ -z "${TMUX_PROJECT_DIRS:-}" ]]; then
     export TMUX_PROJECT_DIRS="$HOME/repos:$HOME/Developer:$DOTFILES"
@@ -71,15 +75,17 @@ export TAU_EDITOR_CMD="${TAU_EDITOR_CMD:-${EDITOR:-nvim}}"
 export TAU_GIT_CMD="${TAU_GIT_CMD:-lazygit}"
 
 # Autojump
-if [ -f /opt/homebrew/etc/profile.d/autojump.sh ]; then
-    . /opt/homebrew/etc/profile.d/autojump.sh
+if [[ -n "${HOMEBREW_PREFIX:-}" && -f "$HOMEBREW_PREFIX/etc/profile.d/autojump.sh" ]]; then
+    . "$HOMEBREW_PREFIX/etc/profile.d/autojump.sh"
 elif [ -f /usr/share/autojump/autojump.zsh ]; then
     . /usr/share/autojump/autojump.zsh
 fi
 
 # Syntax highlighting
-if [[ "$(uname)" == "Darwin" ]]; then
-    source "${ZSH_SYNTAX_HIGHLIGHTING:-/opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh}"
+if [[ -n "${ZSH_SYNTAX_HIGHLIGHTING:-}" && -f "$ZSH_SYNTAX_HIGHLIGHTING" ]]; then
+    source "$ZSH_SYNTAX_HIGHLIGHTING"
+elif [[ -n "${HOMEBREW_PREFIX:-}" && -f "$HOMEBREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]]; then
+    source "$HOMEBREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
 elif [[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]]; then
     source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 fi
