@@ -121,7 +121,7 @@ fi
 if command -v brew &>/dev/null; then
     brew tap jesseduffield/lazydocker 2>/dev/null || true
     brew tap raine/workmux 2>/dev/null || true
-    brew install yq raine/workmux/workmux jesseduffield/lazydocker/lazydocker
+    brew install yq tree raine/workmux/workmux jesseduffield/lazydocker/lazydocker
 else
     echo "  WARNING: brew install failed; workmux/yq missing — work CLI will refuse to run"
 fi

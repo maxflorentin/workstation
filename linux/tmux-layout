@@ -10,7 +10,7 @@
 
 set -e
 
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$PATH"
 
 PROJECT="${1:-}"
 CLIENTRC="$HOME/.clientrc"
