@@ -7,7 +7,7 @@
 nerdfont: true
 
 panes:
-  - command: tree -L 2
+  - command: workmux dashboard
   - split: horizontal
     percentage: 70
     focus: true

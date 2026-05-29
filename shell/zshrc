@@ -150,6 +150,21 @@ if [ -f "$HOME/repos/gcp/google-cloud-sdk/completion.zsh.inc" ]; then . "$HOME/r
 
 [ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
 
+# Startup: direct interactive SSH into Linux workspaces should land in the
+# canonical tmux/workmux layout. Disable for one remote shell with:
+#   ssh -t <user>@workstation 'TMUX_AUTO_ATTACH=0 exec zsh -l'
+if [[ -o interactive ]] &&
+   [[ -z "${TMUX:-}" ]] &&
+   [[ "${TMUX_AUTO_ATTACH:-1}" != "0" ]] &&
+   [[ "$(uname -s)" == "Linux" ]] &&
+   [[ -n "${SSH_TTY:-${SSH_CONNECTION:-}}" ]]; then
+    if command -v tmux-layout >/dev/null 2>&1; then
+        exec tmux-layout
+    elif [[ -x "$HOME/.dotfiles/linux/tmux-layout" ]]; then
+        exec "$HOME/.dotfiles/linux/tmux-layout"
+    fi
+fi
+
 # Startup: shells opened directly in ~/repos should land in tmux.
 # Disable for one shell with: TMUX_AUTO_ATTACH=0 zsh
 if [[ -o interactive ]] &&
