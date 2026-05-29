@@ -250,6 +250,7 @@ cmd_connect() {
     fi
 
     _validate_client_name "$client"
+    _require_workmux
 
     # Mount ecryptfs home if encrypted and not already mounted.
     # Passphrase stored in /etc/ecryptfs/<client>.passphrase (root-only, 600).
@@ -2974,13 +2975,6 @@ cmd_help() {
     echo ""
     echo "Legacy env vars still work: WORK_PI_HOST, WORK_PI_USER, WORK_DOTFILES_REPO"
 }
-
-case "${1:-}" in
-    version|help|legacy|"")
-        : ;;  # diagnostic commands skip the dep check
-    *)
-        _require_workmux ;;
-esac
 
 case "${1:-}" in
     version)        cmd_version ;;
