@@ -2301,45 +2301,6 @@ _browse_chrome_dir() {
     echo "$HOME/.chrome-clients/$client"
 }
 
-_browse_proxy_pac() {
-    local chrome_dir="$1" proxy_port="$2" pac_file
-    pac_file="$chrome_dir/proxy.pac"
-
-    mkdir -p "$chrome_dir"
-    cat > "$pac_file" <<EOF
-function FindProxyForURL(url, host) {
-  host = host.toLowerCase();
-
-  if (
-    isPlainHostName(host) ||
-    shExpMatch(host, "*.local") ||
-    shExpMatch(host, "localhost") ||
-    shExpMatch(host, "127.*") ||
-    shExpMatch(host, "::1") ||
-    shExpMatch(host, "*.google.com") ||
-    shExpMatch(host, "google.com") ||
-    shExpMatch(host, "*.google.com.ar") ||
-    shExpMatch(host, "google.com.ar") ||
-    shExpMatch(host, "*.gstatic.com") ||
-    shExpMatch(host, "*.googleusercontent.com") ||
-    shExpMatch(host, "*.googleapis.com") ||
-    shExpMatch(host, "*.googlevideo.com") ||
-    shExpMatch(host, "*.gvt1.com") ||
-    shExpMatch(host, "*.gvt2.com") ||
-    shExpMatch(host, "*.gvt3.com") ||
-    shExpMatch(host, "*.youtube.com") ||
-    shExpMatch(host, "*.ytimg.com")
-  ) {
-    return "DIRECT";
-  }
-
-  return "SOCKS5 127.0.0.1:$proxy_port";
-}
-EOF
-
-    printf '%s\n' "$pac_file"
-}
-
 cmd_browse() {
     local client="${1:-}"
     if [ -z "$client" ]; then
@@ -2358,9 +2319,10 @@ cmd_browse() {
     fi
     _validate_client_name "$client"
 
-    local proxy_port chrome_dir pac_file
+    local proxy_port chrome_dir proxy_bypass
     proxy_port="$(_browse_proxy_port "$client")"
     chrome_dir="$(_browse_chrome_dir "$client")"
+    proxy_bypass="*.local;localhost;127.*;::1;*.google.com;google.com;*.google.com.ar;google.com.ar;*.gstatic.com;*.googleusercontent.com;*.googleapis.com;*.googlevideo.com;*.gvt1.com;*.gvt2.com;*.gvt3.com;*.youtube.com;*.ytimg.com"
 
     if [ "$mode" = "status" ]; then
         echo "browse status"
@@ -2385,11 +2347,11 @@ cmd_browse() {
             -D "127.0.0.1:$proxy_port" \
             -N -f "$WORKSTATION_ADMIN_USER@$WORKSTATION_HOSTNAME"
     fi
-    pac_file="$(_browse_proxy_pac "$chrome_dir" "$proxy_port")"
 
     echo "Opening Chrome for client '$client'..."
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-        --proxy-pac-url="file://$pac_file" \
+        --proxy-server="socks5://127.0.0.1:$proxy_port" \
+        --proxy-bypass-list="$proxy_bypass" \
         --test-type \
         --user-data-dir="$chrome_dir" \
         --no-first-run \
