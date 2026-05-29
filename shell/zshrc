@@ -22,7 +22,7 @@ setopt PUSHD_SILENT           # Don't print stack on pushd
 # Completion
 autoload -Uz compinit
 # Only regenerate completion dump once per day
-if [[ -n ~/.zcompdump(#qN.mh+24) ]]; then
+if [[ ! -f "$HOME/.zcompdump" || -n $HOME/.zcompdump(#qN.mh+24) ]]; then
   compinit -i
 else
   compinit -C -i
