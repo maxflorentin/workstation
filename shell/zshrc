@@ -159,9 +159,15 @@ if [[ -o interactive ]] &&
    [[ "$(uname -s)" == "Linux" ]] &&
    [[ -n "${SSH_TTY:-${SSH_CONNECTION:-}}" ]]; then
     if command -v tmux-layout >/dev/null 2>&1; then
-        exec tmux-layout
+        tmux-layout
+        rc=$?
+        printf '\033[?1l\033>\033[?1000l\033[?1002l\033[?1003l\033[?1004l\033[?1005l\033[?1006l\033[?1015l\033[?2004l\033[0m'
+        exit "$rc"
     elif [[ -x "$HOME/.dotfiles/linux/tmux-layout" ]]; then
-        exec "$HOME/.dotfiles/linux/tmux-layout"
+        "$HOME/.dotfiles/linux/tmux-layout"
+        rc=$?
+        printf '\033[?1l\033>\033[?1000l\033[?1002l\033[?1003l\033[?1004l\033[?1005l\033[?1006l\033[?1015l\033[?2004l\033[0m'
+        exit "$rc"
     fi
 fi
 
