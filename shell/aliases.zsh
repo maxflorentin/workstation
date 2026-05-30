@@ -9,6 +9,34 @@ alias phpstorm='open -a "${PHPSTORM_APP:-/Applications/PhpStorm.app}" "`pwd`"'
 alias shrug="echo '¯\_(ツ)_/¯' | pbcopy"
 alias timestamp="date +%s"
 
+# Remote tmux can leave the local terminal in mouse/reporting modes when SSH
+# exits abruptly. Keep direct `ssh workstation` as safe as the `work` wrapper.
+_ssh_restore_terminal() {
+    local tty_state="${1:-}"
+
+    if [[ -t 1 ]]; then
+        printf '\033[?1l\033>\033[?1000l\033[?1002l\033[?1003l\033[?1004l\033[?1005l\033[?1006l\033[?1015l\033[?2004l\033[0m'
+    fi
+
+    if [[ -t 0 ]]; then
+        if [[ -n "$tty_state" ]]; then
+            stty "$tty_state" 2>/dev/null || stty sane 2>/dev/null || true
+        else
+            stty sane 2>/dev/null || true
+        fi
+    fi
+}
+
+ssh() {
+    local tty_state ssh_status
+    tty_state="$(stty -g 2>/dev/null || true)"
+    ssh_status=0
+
+    command ssh "$@" || ssh_status=$?
+    _ssh_restore_terminal "$tty_state"
+    return "$ssh_status"
+}
+
 # Directories
 alias dotfiles="cd $DOTFILES"
 alias library="cd $HOME/Library"
