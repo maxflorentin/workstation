@@ -1,0 +1,127 @@
+# Media stack for the workstation (Dell Latitude E7470, x86_64).
+#
+# Adapted from https://github.com/pablokbs/plex-rpi (originally ARM/Raspberry Pi):
+#   - Plex/Transmission use amd64 linuxserver.io images instead of ARM ones.
+#   - Resource limits cap each service so it never starves the work containers
+#     on this 2-core / 4-thread box (see `que no me coma mucho`).
+#   - Log rotation prevents container logs from filling the disk.
+#
+# Paths, credentials and the optional Plex claim token live in a host-local
+# .env next to this file (see .env.example). `media setup` seeds it.
+#
+# Lifecycle: use the `media` CLI (media up | down | status | logs ...).
+
+name: media
+
+services:
+
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: media-plex
+    # Host networking is recommended by Plex for GDM/DLNA discovery and works
+    # on Linux. It also avoids mapping Plex's many ports by hand.
+    network_mode: host
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - VERSION=docker
+      # First-run only: grab a token at https://plex.tv/claim (valid ~4 min).
+      - PLEX_CLAIM=${PLEX_CLAIM}
+    volumes:
+      - ${CONFIG}/plex:/config
+      - ${MEDIA}:/media
+      - ${TRANSCODE}:/transcode
+    # Hardware transcoding (Intel QuickSync) needs Plex Pass. You chose direct
+    # play, so it stays off. To enable later: get Plex Pass, uncomment below,
+    # and set the transcoder to use HW acceleration in Plex settings.
+    # devices:
+    #   - /dev/dri:/dev/dri
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          memory: 256M
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  samba:
+    image: dperson/samba
+    container_name: media-samba
+    command: >-
+      -u "${SAMBA_USER};${SAMBA_PASS}"
+      -s "media;/media;yes;no;no;${SAMBA_USER}"
+      -s "downloads;/downloads;yes;no;no;${SAMBA_USER}"
+    environment:
+      - TZ=${TZ}
+    ports:
+      - "139:139"
+      - "445:445"
+    volumes:
+      - ${MEDIA}:/media
+      - ${STORAGE}/torrents:/downloads
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  transmission:
+    image: lscr.io/linuxserver/transmission:latest
+    container_name: media-transmission
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - USER=${TRANSMISSION_USER}
+      - PASS=${TRANSMISSION_PASS}
+    volumes:
+      - ${CONFIG}/transmission:/config
+      - ${STORAGE}/torrents:/downloads
+      - ${STORAGE}/torrents/watch:/watch
+    ports:
+      - "9091:9091"
+      - "51413:51413"
+      - "51413:51413/udp"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  flexget:
+    image: wiserain/flexget:3.5
+    container_name: media-flexget
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+      - TORRENT_PLUGIN=transmission
+      - FG_WEBUI_PASSWD=${FLEXGET_PASSWD}
+    volumes:
+      - ${CONFIG}/flexget:/config
+      - ${STORAGE}/torrents:/downloads
+      - ${MEDIA}:/storage
+    ports:
+      - "5050:5050"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

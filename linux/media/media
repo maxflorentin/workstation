@@ -1,0 +1,181 @@
+#!/bin/bash
+
+# media: Manage the workstation media stack (Plex + Samba + Transmission + Flexget).
+# Lifecycle wrapper around docker compose, plus a one-time `setup`.
+# Runs on the workstation (Linux). See docs/media-server.md.
+
+set -euo pipefail
+
+# Resolve this script's real directory (it is symlinked into ~/.local/bin).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    TARGET="$(readlink "$SOURCE")"
+    case "$TARGET" in
+        /*) SOURCE="$TARGET" ;;
+        *) SOURCE="$DIR/$TARGET" ;;
+    esac
+done
+MEDIA_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+COMPOSE="$MEDIA_DIR/docker-compose.yaml"
+ENV_FILE="$MEDIA_DIR/.env"
+ENV_EXAMPLE="$MEDIA_DIR/.env.example"
+SERVICE_USER="media"
+
+die() { echo "media: $*" >&2; exit 1; }
+
+require_env() {
+    [ -f "$ENV_FILE" ] || die "no .env yet. Run: media setup"
+}
+
+# Read one KEY from the .env without sourcing arbitrary shell.
+env_get() {
+    local key="$1"
+    awk -F= -v k="$key" '
+        $0 ~ "^[[:space:]]*" k "=" {
+            sub("^[[:space:]]*" k "=", "", $0); print $0; exit
+        }' "$ENV_FILE"
+}
+
+compose() {
+    require_env
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE" "$@"
+}
+
+cmd_setup() {
+    local force=0
+    [ "${1:-}" = "--force" ] && force=1
+
+    # 1. System user for file ownership (PUID/PGID).
+    if ! id "$SERVICE_USER" >/dev/null 2>&1; then
+        echo "Creating system user '$SERVICE_USER' (needs sudo)..."
+        sudo useradd --system --user-group --no-create-home \
+            --shell /usr/sbin/nologin "$SERVICE_USER"
+    fi
+    local puid pgid
+    puid="$(id -u "$SERVICE_USER")"
+    pgid="$(id -g "$SERVICE_USER")"
+    echo "user '$SERVICE_USER': PUID=$puid PGID=$pgid"
+
+    # Let the current operator read/write the media dirs too.
+    if ! id -nG "$USER" | tr ' ' '\n' | grep -qx "$SERVICE_USER"; then
+        echo "Adding $USER to group '$SERVICE_USER' (re-login to take effect)..."
+        sudo usermod -aG "$SERVICE_USER" "$USER" || true
+    fi
+
+    # 2. .env from template, then fill PUID/PGID if still blank.
+    if [ ! -f "$ENV_FILE" ]; then
+        cp "$ENV_EXAMPLE" "$ENV_FILE"
+        echo "Created $ENV_FILE from template."
+    fi
+    sed -i "s/^PUID=\$/PUID=$puid/" "$ENV_FILE"
+    sed -i "s/^PGID=\$/PGID=$pgid/" "$ENV_FILE"
+
+    # 3. Storage tree on the external disk.
+    local storage media config transcode
+    storage="$(env_get STORAGE)"
+    media="$(env_get MEDIA)"
+    config="$(env_get CONFIG)"
+    transcode="$(env_get TRANSCODE)"
+    [ -n "$storage" ] && [ -n "$media" ] && [ -n "$config" ] && [ -n "$transcode" ] \
+        || die "STORAGE/MEDIA/CONFIG/TRANSCODE missing in $ENV_FILE"
+
+    if ! mountpoint -q "$storage" && [ "$force" -ne 1 ]; then
+        echo ""
+        echo "WARNING: $storage is not a mountpoint."
+        echo "Mount the 512 GB disk there first, or creating the tree now would"
+        echo "write to the root SSD and get shadowed once the disk mounts."
+        echo "Mount it (see docs/media-server.md), then re-run: media setup"
+        echo "Override (testing only) with: media setup --force"
+        exit 1
+    fi
+
+    echo "Creating directory tree under $storage (needs sudo)..."
+    sudo mkdir -p \
+        "$media/movies" "$media/tv" "$media/music" \
+        "$storage/torrents/watch" \
+        "$config/plex" "$config/transmission" "$config/flexget" \
+        "$transcode"
+    sudo chown -R "$puid:$pgid" "$storage"
+
+    # 4. Seed flexget config if absent.
+    if [ ! -f "$config/flexget/config.yml" ]; then
+        sudo cp "$MEDIA_DIR/flexget/config.example.yml" "$config/flexget/config.yml"
+        sudo chown "$puid:$pgid" "$config/flexget/config.yml"
+        echo "Seeded $config/flexget/config.yml (edit it with your feeds)."
+    fi
+
+    echo ""
+    echo "Setup done. Next:"
+    echo "  1. Edit secrets in $ENV_FILE (Transmission/Flexget/Samba passwords)."
+    echo "  2. For a fresh Plex: set PLEX_CLAIM from https://plex.tv/claim (~4 min TTL)."
+    echo "  3. media up"
+}
+
+cmd_claim() {
+    require_env
+    local token="${1:-}"
+    [ -n "$token" ] || die "usage: media claim <token-from-plex.tv/claim>"
+    if grep -q '^PLEX_CLAIM=' "$ENV_FILE"; then
+        sed -i "s|^PLEX_CLAIM=.*|PLEX_CLAIM=$token|" "$ENV_FILE"
+    else
+        printf 'PLEX_CLAIM=%s\n' "$token" >> "$ENV_FILE"
+    fi
+    echo "PLEX_CLAIM set. Run: media up  (then clear it again after Plex links)."
+}
+
+cmd_status() {
+    require_env
+    echo "== containers =="
+    compose ps
+    echo ""
+    echo "== resource usage =="
+    docker stats --no-stream \
+        --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' \
+        media-plex media-samba media-transmission media-flexget 2>/dev/null || true
+    echo ""
+    local host
+    host="$(hostname -s 2>/dev/null || hostname)"
+    echo "== endpoints =="
+    echo "  Plex:         http://$host:32400/web"
+    echo "  Transmission: http://$host:9091"
+    echo "  Flexget:      http://$host:5050"
+    echo "  Samba:        smb://$host  (shares: media, downloads)"
+}
+
+usage() {
+    cat <<EOF
+media: workstation media stack (Plex + Samba + Transmission + Flexget)
+
+Setup:
+  media setup [--force]   Create 'media' user, dirs, and .env (one time)
+  media claim <token>     Set the Plex first-run claim token
+
+Lifecycle:
+  media up                Pull (if needed) and start the stack
+  media down              Stop and remove containers
+  media restart [svc]     Restart all or one service
+  media pull              Pull newer images
+  media ps                Container state
+  media status            State + CPU/RAM usage + endpoints
+  media logs [svc]        Follow logs (all or one service)
+
+Files:
+  compose: $COMPOSE
+  env:     $ENV_FILE  (host-local, gitignored)
+EOF
+}
+
+case "${1:-}" in
+    setup)   shift; cmd_setup "$@" ;;
+    claim)   shift; cmd_claim "$@" ;;
+    up)      shift; compose up -d "$@" ;;
+    down)    shift; compose down "$@" ;;
+    restart) shift; compose restart "$@" ;;
+    pull)    shift; compose pull "$@" ;;
+    ps)      shift; compose ps "$@" ;;
+    status)  cmd_status ;;
+    logs)    shift; compose logs -f --tail=100 "$@" ;;
+    ""|help|-h|--help) usage ;;
+    *) die "unknown command '$1' (try: media help)" ;;
+esac

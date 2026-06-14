@@ -112,6 +112,9 @@ if [ "$OS" = "Linux" ]; then
     ln -sf "$DOTFILES/linux/tmux-layout" "$HOME/.local/bin/tmux-layout"
     ln -sf "$DOTFILES/linux/work" "$HOME/.local/bin/work"
 
+    # media stack CLI (Plex + Samba + Transmission + Flexget)
+    ln -sf "$DOTFILES/linux/media/media" "$HOME/.local/bin/media"
+
     # work-tracker crons (pulse every 5 min; monthly report snapshot)
     if [ -x "$HOME/.local/bin/work-tracker" ]; then
         work_tracker_crons="$("$HOME/.local/bin/work-tracker" cron-lines "$HOME/.local/bin/work-tracker")"

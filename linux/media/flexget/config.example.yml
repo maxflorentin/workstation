@@ -1,0 +1,28 @@
+# Flexget skeleton. `media setup` copies this to $CONFIG/flexget/config.yml
+# (host-local) if none exists. Edit it THERE, not here — this stays a template.
+#
+# Docs: https://flexget.com/Configuration
+#
+# Transmission runs as a sibling container; reach it by service name on the
+# compose network. Credentials must match TRANSMISSION_USER/PASS in .env.
+
+templates:
+  global:
+    transmission:
+      host: transmission
+      port: 9091
+      username: admin          # match TRANSMISSION_USER
+      password: changeme       # match TRANSMISSION_PASS
+      path: /downloads
+
+tasks:
+  # Example placeholder task. Replace with your real RSS/feeds.
+  # example-feed:
+  #   rss: https://example.com/your-feed.rss
+  #   accept_all: yes
+  #   download: /downloads
+
+schedules:
+  - tasks: ['*']
+    interval:
+      hours: 1

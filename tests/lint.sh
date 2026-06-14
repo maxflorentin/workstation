@@ -23,6 +23,7 @@ else
         "$ROOT/linux/bootstrap.sh" \
         "$ROOT/linux/ecryptfs-auto-mount" \
         "$ROOT/linux/tailscale-client-setup.sh" \
+        "$ROOT/linux/media/media" \
         "$ROOT/linux/tmux-layout" \
         "$ROOT/linux/work" \
         "$ROOT/macos/defaults.sh" \
