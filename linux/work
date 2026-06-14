@@ -2325,16 +2325,24 @@ _browse_bypass_extra() {
 cmd_browse() {
     local client="${1:-}"
     if [ -z "$client" ]; then
-        echo "Usage: work browse [--status] <client>"
+        echo "Usage: work browse [--status] [--no-proxy] <client>"
         echo "Opens isolated Chrome routed through workstation network/VPN"
         exit 1
     fi
     local mode="open"
+    local no_proxy=0
     if [ "$client" = "--status" ]; then
         mode="status"
         client="${2:-}"
         if [ -z "$client" ]; then
             echo "Usage: work browse --status <client>"
+            exit 1
+        fi
+    elif [ "$client" = "--no-proxy" ]; then
+        no_proxy=1
+        client="${2:-}"
+        if [ -z "$client" ]; then
+            echo "Usage: work browse --no-proxy <client>"
             exit 1
         fi
     fi
@@ -2364,6 +2372,18 @@ cmd_browse() {
         else
             echo "  state:   proxy stopped"
         fi
+        return
+    fi
+
+    if [ "$no_proxy" = "1" ]; then
+        echo "Opening Chrome for client '$client' (no proxy)..."
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+            --proxy-server="direct://" \
+            --test-type \
+            --user-data-dir="$chrome_dir" \
+            --no-first-run \
+            &>/dev/null &
+        echo "Chrome running with direct connection (no proxy)."
         return
     fi
 
