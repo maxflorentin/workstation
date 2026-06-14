@@ -1,0 +1,38 @@
+# ~/.chrome-clients/<client>.bypass
+#
+# Extra proxy-bypass entries for `work browse <client>`. Hosts listed here are
+# routed DIRECT instead of through the ssh -D SOCKS tunnel.
+#
+# Why this exists: `ssh -D` forwards TCP only. Video calls (WebRTC) carry their
+# audio/video over UDP, which cannot traverse the tunnel. If a call's media
+# servers go through the proxy, the call freezes/drops. Bypassing the
+# conferencing hosts lets their media flow over the Mac's real interface so the
+# call works. The base list already bypasses Google (Meet/GApps/YouTube).
+#
+# Format: one entry per line. `#` comments and blank lines are ignored. Entries
+# may be hostnames, wildcards (*.example.com), IP literals, or CIDR ranges.
+# Chrome's --proxy-bypass-list syntax applies.
+#
+# This file is Mac-local and MUST NOT be committed (see docs/client-boundaries.md).
+# Copy it to ~/.chrome-clients/<client>.bypass and fill in real hosts there.
+
+# --- Example: Microsoft Teams (incl. Class.com and similar Teams wrappers) ---
+# Signaling / web app:
+# *.teams.microsoft.com
+# *.teams.microsoft.us
+# *.skype.com
+# *.lync.com
+# *.sfbassets.com
+# *.office.com
+# *.office365.com
+# *.microsoftonline.com
+# *.azureedge.net
+# *.trafficmanager.net
+#
+# Teams real-time media (UDP) — Microsoft's published "Optimize" IP ranges:
+# 13.107.64.0/18
+# 52.112.0.0/14
+# 52.122.0.0/15
+#
+# Conferencing wrapper (replace with the real host you connect to):
+# *.<conferencing-host>

@@ -2302,6 +2302,26 @@ _browse_chrome_dir() {
     echo "$HOME/.chrome-clients/$client"
 }
 
+# Per-client proxy-bypass extensions. The ssh -D SOCKS tunnel is TCP-only, so
+# WebRTC media (video calls) cannot traverse it. Real-time conferencing hosts
+# must be bypassed to flow direct. Client domains/IP ranges stay Mac-local and
+# uncommitted (see docs/client-boundaries.md): one entry per line in
+# ~/.chrome-clients/<client>.bypass (# comments and blank lines ignored), plus
+# an optional WORK_BROWSE_PROXY_BYPASS_EXTRA env override. Output is a
+# semicolon-joined fragment with no trailing separator, or empty if none.
+_browse_bypass_extra() {
+    local client="$1"
+    local file="$HOME/.chrome-clients/$client.bypass"
+    {
+        if [ -f "$file" ]; then
+            sed -e 's/#.*$//' -e 's/[[:space:]]//g' "$file"
+        fi
+        if [ -n "${WORK_BROWSE_PROXY_BYPASS_EXTRA:-}" ]; then
+            printf '%s\n' "$WORK_BROWSE_PROXY_BYPASS_EXTRA" | tr ';' '\n'
+        fi
+    } | awk 'NF' | paste -sd ';' -
+}
+
 cmd_browse() {
     local client="${1:-}"
     if [ -z "$client" ]; then
@@ -2320,17 +2340,25 @@ cmd_browse() {
     fi
     _validate_client_name "$client"
 
-    local proxy_port chrome_dir proxy_bypass
+    local proxy_port chrome_dir proxy_bypass bypass_extra
     proxy_port="$(_browse_proxy_port "$client")"
     chrome_dir="$(_browse_chrome_dir "$client")"
     proxy_bypass="*.local;localhost;127.*;::1;*.google.com;google.com;*.google.com.ar;google.com.ar;*.gstatic.com;*.googleusercontent.com;*.googleapis.com;*.googlevideo.com;*.gvt1.com;*.gvt2.com;*.gvt3.com;*.youtube.com;*.ytimg.com"
+    bypass_extra="$(_browse_bypass_extra "$client")"
+    if [ -n "$bypass_extra" ]; then
+        proxy_bypass="$proxy_bypass;$bypass_extra"
+    fi
 
     if [ "$mode" = "status" ]; then
+        local extra_count=0
+        if [ -n "$bypass_extra" ]; then
+            extra_count="$(printf '%s' "$bypass_extra" | tr ';' '\n' | grep -c .)"
+        fi
         echo "browse status"
         echo "  client:  $client"
         echo "  proxy:   127.0.0.1:$proxy_port"
         echo "  profile: $chrome_dir"
-        echo "  bypass:  Google/GApps direct"
+        echo "  bypass:  Google/GApps direct + $extra_count client host(s)"
         if lsof -i ":$proxy_port" &>/dev/null; then
             echo "  state:   proxy running"
         else
@@ -2350,6 +2378,13 @@ cmd_browse() {
     fi
 
     echo "Opening Chrome for client '$client'..."
+    if [ -n "$bypass_extra" ]; then
+        echo "  bypass: Google/GApps + $(printf '%s' "$bypass_extra" | tr ';' '\n' | grep -c .) client host(s) direct (video calls)"
+    else
+        echo "  note: only Google/GApps bypass the proxy. Video calls on other"
+        echo "        platforms need their hosts in ~/.chrome-clients/$client.bypass"
+        echo "        (ssh -D is TCP-only; WebRTC media is UDP and won't tunnel)."
+    fi
     "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
         --proxy-server="socks5://127.0.0.1:$proxy_port" \
         --proxy-bypass-list="$proxy_bypass" \
@@ -2969,6 +3004,11 @@ cmd_help() {
     echo "  WORKSTATION_USER           Admin user on server (default: max)"
     echo "  WORKSTATION_DOTFILES_REPO  Dotfiles repo URL for new users"
     echo "  WORK_CONNECT_BROWSE        Open browser during work connect when truthy"
+    echo "  WORK_BROWSE_PROXY_BYPASS_EXTRA"
+    echo "                             Extra ;-separated hosts to route direct in"
+    echo "                             work browse (also reads ~/.chrome-clients/"
+    echo "                             <client>.bypass). Needed for non-Google"
+    echo "                             video calls: ssh -D is TCP-only."
     echo ""
     echo "Legacy:"
     echo "  work legacy                Show compatibility commands"

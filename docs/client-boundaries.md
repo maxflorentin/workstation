@@ -35,6 +35,9 @@ The Mac can keep operator conveniences:
   - `macos/Brewfile.corporate` for managed/corporate Macs;
   - `macos/Brewfile.workstation` for minimal operator tooling against the Dell;
 - browser profile launchers and SOCKS proxy state;
+- per-client `work browse` proxy-bypass lists at
+  `~/.chrome-clients/<client>.bypass` (real conferencing hosts/IP ranges stay
+  here, never committed; start from `templates/chrome-bypass.example`);
 - SSH client config using placeholders in docs and real aliases locally.
 
 Do not copy real client SSH aliases, hostnames, proxy URLs, or browser profile
