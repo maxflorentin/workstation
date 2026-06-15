@@ -102,6 +102,9 @@ Endpoints (on the LAN / over Tailscale):
 - **Flexget → Transmission**: Flexget reaches Transmission by service name on
   the compose network. Keep the credentials in `$CONFIG/flexget/config.yml` in
   sync with `TRANSMISSION_USER`/`TRANSMISSION_PASS` in `.env`.
+- **Flexget password**: Flexget rejects weak/common passwords and the
+  container crash-loops if `FLEXGET_PASSWD` is too simple (e.g. `changeme`).
+  Use a strong one (`openssl rand -base64 12`).
 - **Port check**: none of the media ports (32400, 139, 445, 9091, 51413, 5050)
   collide with the work stack (4566, 5432/55432/5433, 13000, 8093, 9083,
   9000/9001/9100/9101).
