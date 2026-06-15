@@ -32,6 +32,9 @@ services:
       - ${CONFIG}/plex:/config
       - ${MEDIA}:/media
       - ${TRANSCODE}:/transcode
+      # Working public DNS: host net makes compose's `dns:` a no-op, and the
+      # host's Tailscale resolver (100.100.100.100) can't resolve plex.tv.
+      - ./resolv.conf:/etc/resolv.conf:ro
     # Hardware transcoding (Intel QuickSync) needs Plex Pass. You chose direct
     # play, so it stays off. To enable later: get Plex Pass, uncomment below,
     # and set the transcoder to use HW acceleration in Plex settings.
@@ -52,6 +55,7 @@ services:
   samba:
     image: dperson/samba
     container_name: media-samba
+    dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
     command: >-
       -u "${SAMBA_USER};${SAMBA_PASS}"
       -s "media;/media;yes;no;no;${SAMBA_USER}"
@@ -77,6 +81,7 @@ services:
   transmission:
     image: lscr.io/linuxserver/transmission:latest
     container_name: media-transmission
+    dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -104,6 +109,7 @@ services:
   flexget:
     image: wiserain/flexget:3.5
     container_name: media-flexget
+    dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
