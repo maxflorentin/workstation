@@ -1,10 +1,15 @@
-# Flexget skeleton. `media setup` copies this to $CONFIG/flexget/config.yml
+# Flexget config. `media setup` copies this to $CONFIG/flexget/config.yml
 # (host-local) if none exists. Edit it THERE, not here — this stays a template.
 #
 # Docs: https://flexget.com/Configuration
 #
 # Transmission runs as a sibling container; reach it by service name on the
-# compose network. Credentials must match TRANSMISSION_USER/PASS in .env.
+# compose network. Keep the credentials below in sync with
+# TRANSMISSION_USER/TRANSMISSION_PASS in .env.
+#
+# NOTE: `tasks:` must be a non-empty mapping or the daemon fails schema
+# validation and crash-loops. The disabled placeholder below keeps it valid
+# until you add real feeds.
 
 templates:
   global:
@@ -16,11 +21,16 @@ templates:
       path: /downloads
 
 tasks:
-  # Example placeholder task. Replace with your real RSS/feeds.
-  # example-feed:
-  #   rss: https://example.com/your-feed.rss
-  #   accept_all: yes
-  #   download: /downloads
+  # Harmless placeholder so the config validates. Produces one mock entry and
+  # accepts nothing, so it does nothing. Replace with your real RSS feeds, e.g.:
+  #   my-feed:
+  #     rss: https://example.com/feed.rss
+  #     accept_all: yes
+  #     download: /downloads
+  placeholder:
+    mock:
+      - title: placeholder
+    disable: builtins
 
 schedules:
   - tasks: ['*']
