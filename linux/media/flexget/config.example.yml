@@ -11,6 +11,13 @@
 # validation and crash-loops. The disabled placeholder below keeps it valid
 # until you add real feeds.
 
+# Web UI / API on :5050. Without this block the daemon runs but serves no
+# web interface (connection refused). Password comes from FG_WEBUI_PASSWD.
+web_server:
+  bind: 0.0.0.0
+  port: 5050
+  web_ui: yes
+
 templates:
   global:
     transmission:
