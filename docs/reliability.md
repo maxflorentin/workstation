@@ -35,6 +35,35 @@ For clients that require a compliance profile:
 sudo ~/.local/bin/work compliance-doctor <client>
 ```
 
+## DNS Resolution
+
+The host resolves through a local `dnsmasq` (`/etc/resolv.conf` is
+`nameserver 127.0.0.1`) that forwards only to the filtering DNS provider (see
+`linux/dnsmasq/nextdns.conf.example`). Two settings keep this reliable:
+
+- **dnsmasq forwards IPv4-only.** This host has no global IPv6 route. The stock
+  provider config listed the provider's IPv6 endpoints first under
+  `strict-order`, so every query hit a dead transport and intermittently
+  returned `EAI_AGAIN` ("Temporary failure in name resolution"). Keep only the
+  reachable IPv4 upstreams.
+- **Tailscale DNS is disabled** (`sudo tailscale set --accept-dns=false`). With
+  it enabled, Tailscale pushes its MagicDNS resolver into `resolvconf`, which
+  regenerates `/etc/resolv.conf`. That resolver has no working upstream here, so
+  each regeneration opened a short window where all resolution failed — enough
+  to break long-running services (messaging gateways, outbound API calls,
+  container image pulls). Tailnet peers are reached by IP, so only resolution of
+  the tailnet MagicDNS suffix is given up.
+
+Filtering is enforced locally by dnsmasq, independent of Tailscale, so disabling
+Tailscale DNS does not weaken it. Do **not** add public resolvers (e.g.
+`1.1.1.1`) to `/etc/resolv.conf` as a fallback: that bypasses the filtering
+provider.
+
+Regression symptoms: intermittent `EAI_AGAIN` in service logs, or
+`/etc/resolv.conf` mtime changing in lockstep with the failures. Confirm with
+`getent hosts <name>` and that `/etc/resolv.conf` stays at `nameserver
+127.0.0.1`.
+
 ## Backup Readiness
 
 `work backup-doctor` is non-destructive. It checks that the important state is
