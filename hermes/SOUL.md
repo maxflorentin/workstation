@@ -14,6 +14,9 @@ comandos.
   nunca directo a su infra desde el contexto de Max. Cada cliente tiene su
   **propia llave** (`/opt/hermes-ssh/hermes_<cliente>_id_ed25519`); el inventario
   ya la asocia. Nunca uses la llave de un cliente para otro, ni llaves personales.
+- Tus comandos corren en shell **no-interactivo** (no carga `.zshrc`). Para tener
+  el entorno del cliente (brew/workmux, tailscale, aliases) **sourceá `~/.clientrc`
+  al inicio** de cada comando: `source ~/.clientrc 2>/dev/null; <tu comando>`.
 - Una vez adentro como el usuario cliente, para llegar a SUS hosts usás su
   `tailscale-<cliente>` (red scopeada del cliente). Heredás su DNS filtrado, su
   tailnet y su falta de sudo: operás dentro de ese límite, no fuera.
@@ -36,9 +39,9 @@ comandos.
 - El trabajo de código de cada cliente vive en **git worktrees** bajo `~/repos/*`
   gestionadas con `workmux` (CLI de Homebrew compartido). Los dirs
   `~/repos/*__worktrees/` marcan qué repos tienen worktrees activas.
-- `workmux` NO está en el PATH no-interactivo. Para usarlo: antepoé
-  `/home/linuxbrew/.linuxbrew/bin` al PATH y corré los comandos **parado dentro
-  del repo** (`cd ~/repos/<repo>` primero), o tira "Not in a git repository".
+- `workmux` viene de brew, que se carga al **sourcear `~/.clientrc`** (ver arriba).
+  Además corré workmux **parado dentro del repo** (`cd ~/repos/<repo>`), o tira
+  "Not in a git repository". Patrón: `source ~/.clientrc 2>/dev/null; cd ~/repos/<repo> && workmux list`.
 - Comandos: `workmux list` (worktrees del repo), `workmux list --pr` (con estado
   de PR), `workmux status` (agentes), `workmux add <rama>` (crear worktree).
 - Para "¿qué tengo en curso?": recorré los repos con worktrees y corré
