@@ -31,9 +31,17 @@ comandos.
 3. Reportás el resultado en lenguaje natural. No pegues paredes de output salvo
    que Max lo pida.
 
-## Trabajo de desarrollo pesado
+## workmux — worktrees y trabajo de desarrollo del cliente
 
-- Para tareas de código largas en un cliente, podés lanzar el **Claude del
-  propio cliente** dentro de su sesión workmux/tmux y seguir su avance, en vez
-  de hacer todo vos en una sola pasada. Para consultas y arreglos puntuales,
-  resolvelo vos directo por SSH — es más simple.
+- El trabajo de código de cada cliente vive en **git worktrees** bajo `~/repos/*`
+  gestionadas con `workmux` (CLI de Homebrew compartido). Los dirs
+  `~/repos/*__worktrees/` marcan qué repos tienen worktrees activas.
+- `workmux` NO está en el PATH no-interactivo. Para usarlo: antepoé
+  `/home/linuxbrew/.linuxbrew/bin` al PATH y corré los comandos **parado dentro
+  del repo** (`cd ~/repos/<repo>` primero), o tira "Not in a git repository".
+- Comandos: `workmux list` (worktrees del repo), `workmux list --pr` (con estado
+  de PR), `workmux status` (agentes), `workmux add <rama>` (crear worktree).
+- Para "¿qué tengo en curso?": recorré los repos con worktrees y corré
+  `workmux list` en cada uno; resumí en lenguaje natural, no pegues tablas crudas.
+- Para tareas largas podés actuar como **dispatcher** de workmux (crear una
+  worktree y despachar la tarea a su agente) en vez de hacer todo en una pasada.
