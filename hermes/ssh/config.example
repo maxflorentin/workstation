@@ -1,0 +1,29 @@
+# Hermes agent SSH inventory (TEMPLATE).
+#
+# The REAL file lives at ~/.hermes/ssh/config (gitignored, never committed) —
+# it carries real client usernames, so it stays host-local per
+# docs/client-boundaries.md. setup.sh seeds this template on first run.
+#
+# Model: the agent reaches a real client by becoming that client's user
+# (<client>@workstation, via the host's docker-bridge gateway 172.17.0.1),
+# each with ITS OWN key. That inherits the client user's scoped
+# tailscale-<client>, DNS filtering and no-sudo isolation — no key spans
+# clients, and revoking one = removing one pubkey from one authorized_keys.
+
+Host *
+    IdentitiesOnly yes
+    StrictHostKeyChecking accept-new
+    UserKnownHostsFile /tmp/hermes_known_hosts
+    ConnectTimeout 10
+
+# Test client (safe throwaway key)
+Host poc
+    HostName 172.17.0.2
+    User deploy
+    IdentityFile /opt/hermes-ssh/hermes_id_ed25519
+
+# Real client (one block per client; reached as the client user):
+# Host <client>
+#     HostName 172.17.0.1
+#     User <client>
+#     IdentityFile /opt/hermes-ssh/hermes_<client>_id_ed25519
