@@ -15,8 +15,9 @@ the host, and never with personal keys.
 |-------|---------|
 | **Who can command the bot** | `TELEGRAM_ALLOWED_USERS` in `~/.hermes/.env` is pinned to your Telegram user id only. DMs from anyone else are dropped. |
 | **Command approval** | `approvals.mode: manual` — the agent asks before executing. |
-| **Execution isolation** | `terminal.backend: docker`. Every command runs in an ephemeral `hermes-agent-ssh` container (1 CPU, 5 GB RAM, 300 s lifetime). The host filesystem is **not** mounted (`docker_mount_cwd_to_workspace: false`). |
-| **SSH identity** | A dedicated key `~/.hermes/ssh/hermes_id_ed25519`, mounted **read-only** at `/opt/hermes-ssh`. Your personal `~/.ssh` is never exposed to the agent. Revoke per-client by deleting that one pubkey from the client's `authorized_keys`. |
+| **Gateway process** | Runs as a dedicated unprivileged `hermes` user — **no sudo, not in the `docker` group** — with its own **rootless Docker**. A compromise of the gateway itself cannot escalate to root via the docker socket. |
+| **Execution isolation** | `terminal.backend: docker`. Every command runs in an ephemeral `hermes-agent-ssh` container (1 CPU, 5 GB RAM, 300 s lifetime) under the gateway's rootless Docker. The host filesystem is **not** mounted (`docker_mount_cwd_to_workspace: false`). |
+| **Client access** | Each client is reached as its own Linux user (`<client>@workstation`) with a **per-client key** (`hermes_<client>_id_ed25519`), authorized only in that client's `authorized_keys`. The agent inherits the client user's scoped network/DNS/no-sudo isolation. Revoke a client by removing one pubkey; personal `~/.ssh` is never exposed. |
 
 ## What is in this repo vs. what stays out
 
@@ -32,12 +33,36 @@ secrets. The following live exclusively under `~/.hermes` and are gitignored:
 ```
 hermes/
 ├── docker/
-│   ├── agent-ssh/Dockerfile    # sandbox image: base + openssh-client
-│   └── poc-client/Dockerfile   # simulated client server (sshd, key-only)
-├── setup.sh                    # idempotent provisioner
-├── poc.sh                      # build/run/test/down the test client
-└── .gitignore                  # keeps secrets and pubkeys out
+│   ├── agent-ssh/Dockerfile      # sandbox image: base + openssh-client
+│   └── poc-client/Dockerfile     # simulated client server (sshd, key-only)
+├── SOUL.md                       # agent operating policy (reach clients as <client>@workstation)
+├── setup.sh                      # idempotent provisioner (key, image, terminal=docker, mount)
+├── poc.sh                        # build/run/test/down the test client
+├── authorize-client.sh           # append the per-client key to <client> authorized_keys
+├── rootless-gateway-setup.sh     # bring up rootless Docker for the hermes service user
+├── migrate-to-hermes-user.sh     # provision Hermes under the unprivileged hermes user
+├── ssh/config.example            # client inventory template (real config is host-local)
+└── .gitignore                    # keeps secrets and pubkeys out
 ```
+
+## Gateway runs as an unprivileged user
+
+The gateway runs as a dedicated `hermes` user (no sudo, not in the `docker`
+group) with **rootless Docker**, so the long-running process cannot escalate to
+root through the docker socket. One-time setup (run as root):
+
+```sh
+sudo bash rootless-gateway-setup.sh        # rootless dockerd for the hermes user
+hermes backup -o /tmp/hermes-migrate.zip   # as the operator, snapshot config/keys
+sudo bash migrate-to-hermes-user.sh        # provision Hermes under hermes + import
+```
+
+Then load the sandbox image into the rootless daemon, install the gateway as a
+`systemctl --user` service for `hermes`, point the client inventory at a
+host-reachable address (rootless containers reach the host by its real IP, not
+the bridge gateway), and cut over from the operator's gateway. The media stack
+stays on the system Docker — moving it to rootless is a separate effort (host
+networking, privileged ports).
 
 ## Usage
 

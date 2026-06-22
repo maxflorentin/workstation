@@ -20,10 +20,10 @@ akf="$home/.ssh/authorized_keys"
 [ -f "$pub" ] || { echo "missing pubkey: $pub (generate the per-client key first)"; exit 1; }
 [ -d "$home" ] || { echo "no home dir: $home"; exit 1; }
 
-# ecryptfs: sshd can only read authorized_keys while the home is mounted.
-if ! mountpoint -q "$home" 2>/dev/null; then
-  echo "note: $home is not a mountpoint — if it's an ecryptfs home it must be"
-  echo "      mounted (active session) for the agent's key to work."
+# ecryptfs homes are only readable by sshd while mounted; plain homes are fine.
+if [ -d "/home/.ecryptfs/$client" ] && ! mountpoint -q "$home" 2>/dev/null; then
+  echo "WARNING: $client has an ecryptfs home that is not mounted — the agent's"
+  echo "         key won't be usable until that client has an active session."
 fi
 
 key="$(cat "$pub")"
