@@ -1,0 +1,30 @@
+# NextDNS upstream for dnsmasq (workstation DNS filtering) — TEMPLATE.
+#
+# The REAL file lives host-local at /etc/dnsmasq.d/nextdns.conf and is NOT
+# committed: it carries the NextDNS profile/CPE id, which per
+# docs/client-boundaries.md and docs/sanitization.md stays out of git.
+#
+# Decision recorded here (no private values):
+#   This host has NO global IPv6 route. The stock nextdns.conf used
+#   `strict-order` and listed the NextDNS IPv6 endpoints FIRST, so dnsmasq tried
+#   an unreachable transport on every query -> intermittent EAI_AGAIN
+#   ("Temporary failure in name resolution"). That flap broke the Hermes
+#   gateway's model API calls, Docker pulls, and Telegram reconnects.
+#
+#   Fix (keeps ALL resolution on NextDNS, filtering intact): drop `strict-order`
+#   and the IPv6 `server=` lines; keep the reachable IPv4 NextDNS servers.
+#   Re-add the IPv6 servers only if this host gains a working IPv6 route.
+#
+# Apply on the host (real CPE id stays local, never printed into git).
+# NOTE: back up OUTSIDE /etc/dnsmasq.d — dnsmasq's conf-dir loads *.bak too, so
+# `sed -i.bak` here creates a duplicate config and dnsmasq refuses to start.
+#   sudo cp /etc/dnsmasq.d/nextdns.conf /etc/nextdns.conf.orig
+#   sudo sed -i -e '/^server=2a07:/d' -e '/^strict-order/d' \
+#       /etc/dnsmasq.d/nextdns.conf
+#   sudo systemctl restart dnsmasq && systemctl is-active dnsmasq
+
+no-resolv
+bogus-priv
+server=45.90.28.0
+server=45.90.30.0
+add-cpe-id=<nextdns-cpe-id>
