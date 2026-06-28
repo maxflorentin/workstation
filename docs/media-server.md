@@ -11,6 +11,7 @@ Services (managed by the `media` CLI, `linux/media/`):
 | Samba          | `dperson/samba`                    | 139, 445           | Share media/downloads over SMB   |
 | Transmission   | `lscr.io/linuxserver/transmission` | 9091, 51413        | Torrent client (download)        |
 | Prowlarr       | `lscr.io/linuxserver/prowlarr`     | 9696               | Indexer manager (your sources)   |
+| FlareSolverr   | `ghcr.io/flaresolverr/flaresolverr`| 8191               | Solves Cloudflare for indexers   |
 | Sonarr         | `lscr.io/linuxserver/sonarr`       | 8989               | TV: track shows, grab episodes   |
 | Radarr         | `lscr.io/linuxserver/radarr`       | 7878               | Movies: track + grab             |
 
@@ -121,6 +122,11 @@ the Prowlarr UI (Indexers → Add) — which trackers you use depends on what yo
 have the right to download. Prowlarr syncs them to Sonarr and Radarr
 automatically (both are wired as Applications with `fullSync`).
 
+**Cloudflare-protected indexers** need FlareSolverr. It's already wired as a
+Prowlarr indexer proxy (`http://flaresolverr:8191`) with the `flaresolverr`
+tag. When an indexer says it needs FlareSolverr, just add the `flaresolverr`
+tag to that indexer in Prowlarr and it'll route through it.
+
 ## hermes integration ("bajá Severance")
 
 You add content by talking to the **hermes** agent on Telegram; it runs the
@@ -154,5 +160,5 @@ ssh -F /opt/hermes-ssh/config media 'series search Severance'
   committed (see `docs/client-boundaries.md`). `media-add` reads the keys from
   there, or from `/etc/media-add.env` (mediabot-readable) on the SSH endpoint.
 - **Port check**: none of the media ports (32400, 139, 445, 9091, 51413, 8989,
-  7878, 9696) collide with the work stack (4566, 5432/55432/5433, 13000, 8093,
+  7878, 9696, 8191) collide with the work stack (4566, 5432/55432/5433, 13000, 8093,
   9083, 9000/9001/9100/9101).

@@ -181,3 +181,26 @@ services:
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
+
+  # Solves Cloudflare/DDoS-Guard challenges so Prowlarr can reach protected
+  # indexers. Runs a headless Chromium, so it's the heaviest service when
+  # active — capped accordingly. Prowlarr reaches it at http://flaresolverr:8191
+  # (wired as an indexer proxy with the "flaresolverr" tag).
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: media-flaresolverr
+    dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
+    environment:
+      - LOG_LEVEL=info
+      - TZ=${TZ}
+    ports:
+      - "8191:8191"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
