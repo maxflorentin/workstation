@@ -76,6 +76,13 @@ if id "$HERMES_USER" >/dev/null 2>&1; then
     [ -n "$gw_ssh_dir" ] || gw_ssh_dir="/home/$HERMES_USER/.hermes/ssh"
 fi
 
+# HostName the agent's rootless sandbox can actually reach. NOT 172.17.0.1 —
+# that's the rootless docker bridge gateway (no sshd there → connection
+# refused). Prefer the stable Tailscale IP; fall back to the primary LAN IP.
+host_ip="$(tailscale ip -4 2>/dev/null | head -1)"
+[ -n "$host_ip" ] || host_ip="$(ip -4 route get 1.1.1.1 2>/dev/null | grep -oP 'src \K\S+' | head -1)"
+[ -n "$host_ip" ] || host_ip="127.0.0.1"
+
 if [ -n "$gw_ssh_dir" ] && [ -d "$gw_ssh_dir" ]; then
     cfg="$gw_ssh_dir/config"
     touch "$cfg"
@@ -86,11 +93,11 @@ if [ -n "$gw_ssh_dir" ] && [ -d "$gw_ssh_dir" ]; then
 
 # --- media stack control (forced-command: media-add only) ---
 Host media
-    HostName 172.17.0.1
+    HostName $host_ip
     User $U
     IdentityFile /opt/hermes-ssh/hermes_id_ed25519
 EOF
-        echo "added 'media' host to $cfg"
+        echo "added 'media' host to $cfg (HostName $host_ip)"
     fi
     # The agent key must exist in the gateway's ssh dir (it usually already does).
     if [ ! -f "$gw_ssh_dir/hermes_id_ed25519" ] && [ -f "$OP_HOME/.hermes/ssh/hermes_id_ed25519" ]; then
