@@ -62,12 +62,27 @@ else
 fi
 chown "$U:$U" "$akf"; chmod 0600 "$akf"
 
-# 5. Add a `media` entry to the hermes SSH inventory (best-effort, idempotent).
-add_inventory() {
-    local cfg="$1"
-    [ -f "$cfg" ] || return 0
-    grep -qE '^Host media$' "$cfg" && { echo "inventory $cfg: media already present"; return 0; }
-    cat >> "$cfg" <<EOF
+# 5. Add a `media` entry to the GATEWAY's SSH inventory. The gateway runs as the
+# hermes service user and mounts ITS OWN ~/.hermes/ssh as /opt/hermes-ssh inside
+# the sandbox (see docker_volumes in the hermes config) — so the entry and key
+# must live there, not in the operator's ~/.hermes/ssh.
+HERMES_USER="${HERMES_USER:-hermes}"
+gw_ssh_dir=""
+if id "$HERMES_USER" >/dev/null 2>&1; then
+    # Read the mount source for /opt/hermes-ssh straight from the gateway config.
+    gw_ssh_dir="$(runuser -u "$HERMES_USER" -- bash -lc \
+        'grep -oP "^[[:space:]]*-[[:space:]]*\K[^:]+(?=:/opt/hermes-ssh:ro)" "$(hermes config path)" 2>/dev/null' \
+        2>/dev/null | head -1)"
+    [ -n "$gw_ssh_dir" ] || gw_ssh_dir="/home/$HERMES_USER/.hermes/ssh"
+fi
+
+if [ -n "$gw_ssh_dir" ] && [ -d "$gw_ssh_dir" ]; then
+    cfg="$gw_ssh_dir/config"
+    touch "$cfg"
+    if grep -qE '^Host media$' "$cfg"; then
+        echo "inventory $cfg: media already present"
+    else
+        cat >> "$cfg" <<EOF
 
 # --- media stack control (forced-command: media-add only) ---
 Host media
@@ -75,15 +90,26 @@ Host media
     User $U
     IdentityFile /opt/hermes-ssh/hermes_id_ed25519
 EOF
-    echo "added 'media' host to $cfg"
-}
-add_inventory /opt/hermes-ssh/config
-add_inventory "$OP_HOME/.hermes/ssh/config"
+        echo "added 'media' host to $cfg"
+    fi
+    # The agent key must exist in the gateway's ssh dir (it usually already does).
+    if [ ! -f "$gw_ssh_dir/hermes_id_ed25519" ] && [ -f "$OP_HOME/.hermes/ssh/hermes_id_ed25519" ]; then
+        install -m 0600 "$OP_HOME/.hermes/ssh/hermes_id_ed25519" "$gw_ssh_dir/hermes_id_ed25519"
+        echo "copied agent key into $gw_ssh_dir"
+    fi
+    chown -R "$HERMES_USER:$HERMES_USER" "$cfg" "$gw_ssh_dir/hermes_id_ed25519" 2>/dev/null || true
+else
+    echo "NOTE: gateway ssh dir not found; add the 'media' host to the agent's"
+    echo "      inventory manually (HostName 172.17.0.1, User $U, the agent key)."
+fi
 
 echo
-echo "Done. Test from the hermes side:"
-echo "  ssh -F /opt/hermes-ssh/config media 'series search Severance'"
-echo "  ssh -F /opt/hermes-ssh/config media 'status'"
+echo "Done. Direct test (as the operator, bypassing the agent inventory):"
+echo "  ssh -i $OP_HOME/.hermes/ssh/hermes_id_ed25519 -o IdentitiesOnly=yes \\"
+echo "      ${U}@localhost 'series search Severance'"
 echo
-echo "If you keep a /media skill for the agent, install it with:"
+echo "Then test through the agent on Telegram (it resolves the 'media' host):"
+echo "  \"buscá la serie Severance en el media server\""
+echo
+echo "Install the /media agent skill with:"
 echo "  sudo bash $REPO/hermes-media-skill.sh"
