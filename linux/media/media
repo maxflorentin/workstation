@@ -94,20 +94,14 @@ cmd_setup() {
     sudo mkdir -p \
         "$media/movies" "$media/tv" "$media/music" \
         "$storage/torrents/watch" \
-        "$config/plex" "$config/transmission" "$config/flexget" \
+        "$config/plex" "$config/transmission" \
+        "$config/sonarr" "$config/radarr" "$config/prowlarr" \
         "$transcode"
     sudo chown -R "$puid:$pgid" "$storage"
 
-    # 4. Seed flexget config if absent.
-    if [ ! -f "$config/flexget/config.yml" ]; then
-        sudo cp "$MEDIA_DIR/flexget/config.example.yml" "$config/flexget/config.yml"
-        sudo chown "$puid:$pgid" "$config/flexget/config.yml"
-        echo "Seeded $config/flexget/config.yml (edit it with your feeds)."
-    fi
-
     echo ""
     echo "Setup done. Next:"
-    echo "  1. Edit secrets in $ENV_FILE (Transmission/Flexget/Samba passwords)."
+    echo "  1. Edit secrets in $ENV_FILE (Transmission/Samba passwords)."
     echo "  2. For a fresh Plex: set PLEX_CLAIM from https://plex.tv/claim (~4 min TTL)."
     echo "  3. media up"
 }
@@ -132,20 +126,23 @@ cmd_status() {
     echo "== resource usage =="
     docker stats --no-stream \
         --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' \
-        media-plex media-samba media-transmission media-flexget 2>/dev/null || true
+        media-plex media-samba media-transmission \
+        media-sonarr media-radarr media-prowlarr 2>/dev/null || true
     echo ""
     local host
     host="$(hostname -s 2>/dev/null || hostname)"
     echo "== endpoints =="
     echo "  Plex:         http://$host:32400/web"
     echo "  Transmission: http://$host:9091"
-    echo "  Flexget:      http://$host:5050"
+    echo "  Sonarr:       http://$host:8989"
+    echo "  Radarr:       http://$host:7878"
+    echo "  Prowlarr:     http://$host:9696"
     echo "  Samba:        smb://$host  (shares: media, downloads)"
 }
 
 usage() {
     cat <<EOF
-media: workstation media stack (Plex + Samba + Transmission + Flexget)
+media: workstation media stack (Plex + Samba + Transmission + Sonarr/Radarr/Prowlarr)
 
 Setup:
   media setup [--force]   Create 'media' user, dirs, and .env (one time)

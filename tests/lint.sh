@@ -24,6 +24,9 @@ else
         "$ROOT/linux/ecryptfs-auto-mount" \
         "$ROOT/linux/tailscale-client-setup.sh" \
         "$ROOT/linux/media/media" \
+        "$ROOT/linux/media/hermes-media-dispatch" \
+        "$ROOT/linux/media/hermes-media-setup.sh" \
+        "$ROOT/linux/media/hermes-media-skill.sh" \
         "$ROOT/linux/tmux-layout" \
         "$ROOT/linux/work" \
         "$ROOT/macos/defaults.sh" \

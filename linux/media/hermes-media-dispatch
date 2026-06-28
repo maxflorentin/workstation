@@ -1,0 +1,17 @@
+#!/bin/sh
+# Forced-command for the `mediabot` SSH user. Restricts the hermes agent to
+# ONLY the media-add CLI — never a free shell.
+#
+# Whatever the client puts in $SSH_ORIGINAL_COMMAND is treated as arguments to
+# media-add (an optional leading "media-add" token is stripped). Only the
+# series/movie/status/help verbs are accepted; anything else is rejected. Word
+# splitting is safe here because media-add re-joins multi-word search queries,
+# and `set -f` disables glob expansion on the untrusted string.
+set -f
+set -- $SSH_ORIGINAL_COMMAND
+[ "${1:-}" = "media-add" ] && shift
+case "${1:-}" in
+    series|movie|status|help|"") : ;;
+    *) echo "media: only 'series', 'movie', 'status', 'help' are allowed" >&2; exit 2 ;;
+esac
+exec env MEDIA_ENV=/etc/media-add.env /usr/local/bin/media-add "$@"

@@ -106,27 +106,77 @@ services:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
 
-  flexget:
-    image: wiserain/flexget:3.5
-    container_name: media-flexget
+  # --- *arr stack: replaces Flexget for "tell hermes, it downloads" flow ---
+  # Single ${STORAGE}:/data mount in sonarr/radarr so the download dir
+  # (/data/torrents) and the library (/data/library/*) share one filesystem
+  # device inside the container — required for instant hardlink imports from
+  # Transmission instead of slow space-doubling copies. Transmission keeps its
+  # own /downloads mount; a remote-path mapping (set via API) bridges the two
+  # path views (transmission:/downloads -> sonarr:/data/torrents).
+
+  prowlarr:
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: media-prowlarr
     dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
-      - TORRENT_PLUGIN=transmission
-      - FG_WEBUI_PASSWD=${FLEXGET_PASSWD}
     volumes:
-      - ${CONFIG}/flexget:/config
-      - ${STORAGE}/torrents:/downloads
-      - ${MEDIA}:/storage
+      - ${CONFIG}/prowlarr:/config
     ports:
-      - "5050:5050"
+      - "9696:9696"
     restart: unless-stopped
     deploy:
       resources:
         limits:
           cpus: "0.5"
+          memory: 512M
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  sonarr:
+    image: lscr.io/linuxserver/sonarr:latest
+    container_name: media-sonarr
+    dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG}/sonarr:/config
+      - ${STORAGE}:/data
+    ports:
+      - "8989:8989"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  radarr:
+    image: lscr.io/linuxserver/radarr:latest
+    container_name: media-radarr
+    dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG}/radarr:/config
+      - ${STORAGE}:/data
+    ports:
+      - "7878:7878"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
           memory: 512M
     logging:
       driver: json-file
