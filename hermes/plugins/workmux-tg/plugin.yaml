@@ -1,0 +1,8 @@
+manifest_version: 1
+name: workmux-tg
+version: 0.1.0
+description: "Deterministic Telegram wrapper over workmux: browse a client's worktrees and talk to their agents via tappable commands, without going through the model."
+author: max
+kind: standalone
+provides_hooks:
+  - pre_gateway_dispatch

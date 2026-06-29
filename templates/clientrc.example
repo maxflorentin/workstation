@@ -23,6 +23,10 @@ WORK_CLIENT_TAILSCALE_SOCKET="/run/tailscale-<client>.sock"
 # endpoint agent, DNS filtering, antivirus, and encrypted-home checks.
 WORK_CLIENT_COMPLIANCE_PROFILE=0
 
+# Optional OpenCode proxy routing. Set to 1 in the client user's shell when
+# Claude Code should route through the central workstation oc-go-cc proxy.
+WORK_CLIENT_OPENCODE_PROXY=0
+
 # Optional config-only backup enrollment. The target should be a separate
 # private repo or private working tree, never this sanitized repo.
 WORK_CLIENT_CONFIG_BACKUP_TARGET=""

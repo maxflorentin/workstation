@@ -39,3 +39,7 @@ Thumbs.db
 .vscode
 .vagrant/
 .claude/settings.local.json
+
+**/.claude/settings.local.json
+
+**/.claude/settings.local.json
