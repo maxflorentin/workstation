@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+"""media-add: search and add series/movies to Sonarr/Radarr, then auto-download.
+
+Designed to be driven by the hermes agent over SSH ("che, bajá Severance").
+Talks to the Sonarr/Radarr HTTP APIs on localhost; no docker access needed.
+
+Usage:
+  media-add series search "<query>"      List matching series (with tvdbId)
+  media-add series add <tvdbId>          Add series, monitor all, search now
+  media-add movie  search "<query>"      List matching movies (with tmdbId)
+  media-add movie  add <tmdbId>          Add movie, monitor, search now
+  media-add status                       What's downloading / wanted
+  media-add help
+
+Output is plain text (one item per line) so the agent can read and relay it.
+
+API keys are read from the environment (SONARR_API_KEY, RADARR_API_KEY) or,
+if unset, from the media .env (path in MEDIA_ENV, default below).
+"""
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+
+DEFAULT_ENV = "/home/max/.dotfiles/linux/media/.env"
+
+SERVICES = {
+    "series": {"port": 8989, "key_var": "SONARR_API_KEY",
+               "root": "/data/library/tv", "id_field": "tvdbId", "id_name": "tvdb"},
+    "movie":  {"port": 7878, "key_var": "RADARR_API_KEY",
+               "root": "/data/library/movies", "id_field": "tmdbId", "id_name": "tmdb"},
+}
+QUALITY_PREF = ["HD-1080p", "HD - 1080p", "HD-720p/1080p", "Any", "SD"]
+
+
+def load_keys():
+    """Populate os.environ with API keys from the .env if not already set."""
+    path = os.environ.get("MEDIA_ENV", DEFAULT_ENV)
+    if not os.path.isfile(path):
+        return
+    with open(path) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k = k.strip()
+            if k in ("SONARR_API_KEY", "RADARR_API_KEY") and k not in os.environ:
+                os.environ[k] = v.strip().strip('"').strip("'")
+
+
+def api(kind, path, method="GET", body=None, params=None):
+    cfg = SERVICES[kind]
+    key = os.environ.get(cfg["key_var"])
+    if not key:
+        die(f"missing {cfg['key_var']} (set it in {DEFAULT_ENV})")
+    url = f"http://127.0.0.1:{cfg['port']}/api/v3/{path}"
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(
+        url, data=data, method=method,
+        headers={"X-Api-Key": key, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            txt = r.read().decode()
+            return json.loads(txt) if txt else None
+    except urllib.error.HTTPError as e:
+        die(f"{kind} API {method} {path} -> HTTP {e.code}: {e.read().decode()[:200]}")
+    except urllib.error.URLError as e:
+        die(f"{kind} API unreachable: {e.reason} (is the stack up? `media up`)")
+
+
+def die(msg):
+    print(f"media-add: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def quality_profile_id(kind):
+    profiles = api(kind, "qualityprofile")
+    by_name = {p["name"]: p["id"] for p in profiles}
+    for name in QUALITY_PREF:
+        if name in by_name:
+            return by_name[name]
+    return profiles[0]["id"]
+
+
+def lookup(kind, query):
+    path = "series/lookup" if kind == "series" else "movie/lookup"
+    return api(kind, path, params={"term": query})
+
+
+def cmd_search(kind, query):
+    results = lookup(kind, query)
+    if not results:
+        print(f"No {kind} results for '{query}'.")
+        return
+    idf = SERVICES[kind]["id_field"]
+    idn = SERVICES[kind]["id_name"]
+    for r in results[:10]:
+        year = r.get("year") or "?"
+        rid = r.get(idf) or "?"
+        already = " [already added]" if r.get("id") else ""
+        print(f"  {r.get('title')} ({year}) — {idn}:{rid}{already}")
+    print(f"\nAdd with: media-add {kind} add <{idn}id>")
+
+
+def cmd_add(kind, ext_id):
+    cfg = SERVICES[kind]
+    idf = cfg["id_field"]
+    # Find the full object from a lookup keyed by the external id.
+    matches = lookup(kind, f"{cfg['id_name']}:{ext_id}")
+    obj = next((m for m in matches if str(m.get(idf)) == str(ext_id)), None)
+    if obj is None and matches:
+        obj = matches[0]
+    if obj is None:
+        die(f"no {kind} found for {cfg['id_name']}:{ext_id}")
+    if obj.get("id"):
+        print(f"Already in library: {obj.get('title')} ({obj.get('year')})")
+        return
+
+    obj["qualityProfileId"] = quality_profile_id(kind)
+    obj["rootFolderPath"] = cfg["root"]
+    obj["monitored"] = True
+    if kind == "series":
+        obj["seasonFolder"] = True
+        obj["addOptions"] = {"monitor": "all", "searchForMissingEpisodes": True}
+        created = api("series", "series", "POST", obj)
+    else:
+        obj["addOptions"] = {"monitor": "movieOnly", "searchForMovie": True}
+        created = api("movie", "movie", "POST", obj)
+    print(f"Added: {created.get('title')} ({created.get('year')}) — searching now.")
+
+
+def cmd_status():
+    for kind in ("series", "movie"):
+        q = api(kind, "queue", params={"pageSize": 50})
+        records = q.get("records", []) if isinstance(q, dict) else []
+        label = "TV" if kind == "series" else "Movies"
+        if not records:
+            print(f"{label}: nothing downloading.")
+            continue
+        print(f"{label} downloading:")
+        for rec in records:
+            title = rec.get("title", "?")
+            status = rec.get("status", "?")
+            pct = 0
+            size = rec.get("size") or 0
+            left = rec.get("sizeleft")
+            if size and left is not None:
+                pct = round(100 * (size - left) / size)
+            print(f"  {title} — {status} {pct}%")
+
+
+def main():
+    load_keys()
+    p = argparse.ArgumentParser(prog="media-add", add_help=False)
+    sub = p.add_subparsers(dest="cmd")
+    for kind in ("series", "movie"):
+        sp = sub.add_parser(kind, add_help=False)
+        ksub = sp.add_subparsers(dest="action")
+        s = ksub.add_parser("search", add_help=False)
+        s.add_argument("query", nargs="+")
+        a = ksub.add_parser("add", add_help=False)
+        a.add_argument("ext_id")
+    sub.add_parser("status", add_help=False)
+    sub.add_parser("help", add_help=False)
+
+    args = p.parse_args()
+    if args.cmd in (None, "help"):
+        print(__doc__)
+        return
+    if args.cmd == "status":
+        cmd_status()
+        return
+    if not getattr(args, "action", None):
+        die(f"usage: media-add {args.cmd} (search <query> | add <id>)")
+    if args.action == "search":
+        cmd_search(args.cmd, " ".join(args.query))
+    elif args.action == "add":
+        cmd_add(args.cmd, args.ext_id)
+
+
+if __name__ == "__main__":
+    main()

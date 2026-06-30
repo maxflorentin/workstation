@@ -112,8 +112,12 @@ if [ "$OS" = "Linux" ]; then
     ln -sf "$DOTFILES/linux/tmux-layout" "$HOME/.local/bin/tmux-layout"
     ln -sf "$DOTFILES/linux/work" "$HOME/.local/bin/work"
 
-    # media stack CLI (Plex + Samba + Transmission + Flexget)
+    # media stack CLI + add helper (Plex + Samba + Transmission + *arr)
     ln -sf "$DOTFILES/linux/media/media" "$HOME/.local/bin/media"
+    ln -sf "$DOTFILES/linux/media/media-add" "$HOME/.local/bin/media-add"
+
+    # DNS fix script (add public fallback to resolve internet from Tailscale)
+    [ -f "$DOTFILES/linux/dns-fix" ] && ln -sf "$DOTFILES/linux/dns-fix" "$HOME/.local/bin/dns-fix"
 
     # work-tracker crons (pulse every 5 min; monthly report snapshot)
     if [ -x "$HOME/.local/bin/work-tracker" ]; then

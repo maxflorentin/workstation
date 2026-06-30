@@ -5,22 +5,40 @@ adapted from [pablokbs/plex-rpi](https://github.com/pablokbs/plex-rpi).
 
 Services (managed by the `media` CLI, `linux/media/`):
 
-| Service        | Image                              | Port(s)            | Purpose                         |
-|----------------|------------------------------------|--------------------|---------------------------------|
-| Plex           | `lscr.io/linuxserver/plex`         | host net (32400)   | Media server                    |
-| Samba          | `dperson/samba`                    | 139, 445           | Share media/downloads over SMB  |
-| Transmission   | `lscr.io/linuxserver/transmission` | 9091, 51413        | Torrent client                  |
-| Flexget        | `wiserain/flexget`                 | 5050               | Download automation             |
+| Service        | Image                              | Port(s)            | Purpose                          |
+|----------------|------------------------------------|--------------------|----------------------------------|
+| Plex           | `lscr.io/linuxserver/plex`         | host net (32400)   | Media server                     |
+| Samba          | `dperson/samba`                    | 139, 445           | Share media/downloads over SMB   |
+| Transmission   | `lscr.io/linuxserver/transmission` | 9091, 51413        | Torrent client (download)        |
+| Prowlarr       | `lscr.io/linuxserver/prowlarr`     | 9696               | Indexer manager (your sources)   |
+| FlareSolverr   | `ghcr.io/flaresolverr/flaresolverr`| 8191               | Solves Cloudflare for indexers   |
+| Sonarr         | `lscr.io/linuxserver/sonarr`       | 8989               | TV: track shows, grab episodes   |
+| Radarr         | `lscr.io/linuxserver/radarr`       | 7878               | Movies: track + grab             |
+
+You request content conversationally through the **hermes** agent on Telegram,
+which calls the `media-add` CLI over a locked-down SSH endpoint (see
+"hermes integration" below). Sonarr/Radarr then search via Prowlarr's indexers,
+download through Transmission, and import into the Plex library automatically.
 
 ## Why this differs from plex-rpi
 
 - **x86_64 images.** The upstream `jaymoulin/*` images are ARM (Raspberry Pi).
   Plex and Transmission use amd64 linuxserver.io images here.
+- **\*arr instead of Flexget.** The original used Flexget for RSS automation.
+  We replaced it with Sonarr/Radarr/Prowlarr, which handle the "I want this
+  show/movie" flow far better (quality profiles, renaming, dedup, retries) and
+  are driven by the hermes agent.
 - **Resource limits.** This box has 2 cores / 4 threads and runs the work data
   stack (postgres, trino, metabase, ...). Each media service is capped via
   `deploy.resources.limits` so it can't starve work containers:
   Plex 2 CPU / 2 GB, Transmission 1 CPU / 1 GB, Samba 1 CPU / 512 MB,
-  Flexget 0.5 CPU / 512 MB.
+  Sonarr/Radarr 1 CPU / 512 MB each, Prowlarr 0.5 CPU / 512 MB.
+- **Single `/data` mount for hardlinks.** Sonarr/Radarr mount the whole
+  `${STORAGE}` as `/data` so the download dir (`/data/torrents`) and the library
+  (`/data/library/*`) share one filesystem device inside the container —
+  required for instant hardlink imports instead of slow space-doubling copies.
+  A remote-path mapping bridges Transmission's `/downloads` view to
+  `/data/torrents`.
 - **No hardware transcoding.** You run direct-play only (no Plex Pass), so
   QuickSync (`/dev/dri`) stays disabled. Software transcoding on this CPU is
   expensive — keep clients on "Original/Maximum" quality to avoid it. To enable
@@ -57,7 +75,7 @@ Layout created by `media setup`:
 ├── library/                # MEDIA  (Plex scans this)
 │   ├── movies/  tv/  music/
 ├── torrents/               # downloads + watch/
-├── config/                 # CONFIG (Plex DB, transmission, flexget) — off the SSD
+├── config/                 # CONFIG (Plex DB, transmission, sonarr/radarr/prowlarr) — off the SSD
 └── tmp/                    # TRANSCODE scratch
 ```
 
@@ -67,7 +85,7 @@ Layout created by `media setup`:
 # 1. Mount the external disk at the path you set in STORAGE (default /mnt/media).
 # 2. One-time setup: creates the 'media' user, the dir tree, and .env.
 media setup
-# 3. Edit secrets in linux/media/.env (Transmission / Flexget / Samba passwords).
+# 3. Edit secrets in linux/media/.env (Transmission / Samba passwords).
 # 4. For a fresh Plex server, set the claim token (valid ~4 min):
 media claim <token-from-https://plex.tv/claim>
 # 5. Start it:
@@ -92,19 +110,55 @@ Endpoints (on the LAN / over Tailscale):
 
 - Plex: `http://<workstation>:32400/web`
 - Transmission: `http://<workstation>:9091`
-- Flexget: `http://<workstation>:5050`
+- Sonarr: `http://<workstation>:8989`
+- Radarr: `http://<workstation>:7878`
+- Prowlarr: `http://<workstation>:9696`
 - Samba: `smb://<workstation>` — shares `media`, `downloads`
+
+## Indexers (your sources)
+
+Sonarr/Radarr can't find releases until **Prowlarr** has indexers. Add them in
+the Prowlarr UI (Indexers → Add) — which trackers you use depends on what you
+have the right to download. Prowlarr syncs them to Sonarr and Radarr
+automatically (both are wired as Applications with `fullSync`).
+
+**Cloudflare-protected indexers** need FlareSolverr. It's already wired as a
+Prowlarr indexer proxy (`http://flaresolverr:8191`) with the `flaresolverr`
+tag. When an indexer says it needs FlareSolverr, just add the `flaresolverr`
+tag to that indexer in Prowlarr and it'll route through it.
+
+## hermes integration ("bajá Severance")
+
+You add content by talking to the **hermes** agent on Telegram; it runs the
+`media-add` CLI over a locked-down SSH endpoint — no dedicated bot or second
+Telegram token.
+
+- **`media-add`** (`linux/media/media-add`): searches + adds via the Sonarr/
+  Radarr APIs. Verbs: `series search|add`, `movie search|add`, `status`.
+  Symlinked to `~/.local/bin/media-add` for direct use too.
+- **Locked-down access**: `hermes-media-setup.sh` (run once, with sudo) creates
+  a `mediabot` user whose SSH `authorized_keys` **forces** the
+  `hermes-media-dispatch` command — the hermes key can run *only* `media-add`,
+  never a shell. The dispatcher whitelists the verbs and passes args via `exec`
+  (no shell), so injection like `series; rm -rf /` is inert.
+- **Agent skill**: `hermes-media-skill.sh` installs a `/media` skill so the
+  agent knows the commands and the search-then-confirm flow.
+
+Activate (on the workstation, needs sudo):
+
+```bash
+sudo bash ~/.dotfiles/linux/media/hermes-media-setup.sh   # mediabot + forced-command
+sudo bash ~/.dotfiles/linux/media/hermes-media-skill.sh   # /media agent skill
+# test from the hermes side:
+ssh -F /opt/hermes-ssh/config media 'series search Severance'
+```
 
 ## Notes
 
 - **Config & `.env`** are host-local. `linux/media/.env` is gitignored; real
-  paths and passwords never get committed (see `docs/client-boundaries.md`).
-- **Flexget → Transmission**: Flexget reaches Transmission by service name on
-  the compose network. Keep the credentials in `$CONFIG/flexget/config.yml` in
-  sync with `TRANSMISSION_USER`/`TRANSMISSION_PASS` in `.env`.
-- **Flexget password**: Flexget rejects weak/common passwords and the
-  container crash-loops if `FLEXGET_PASSWD` is too simple (e.g. `changeme`).
-  Use a strong one (`openssl rand -base64 12`).
-- **Port check**: none of the media ports (32400, 139, 445, 9091, 51413, 5050)
-  collide with the work stack (4566, 5432/55432/5433, 13000, 8093, 9083,
-  9000/9001/9100/9101).
+  paths and passwords (incl. the auto-generated *arr API keys) never get
+  committed (see `docs/client-boundaries.md`). `media-add` reads the keys from
+  there, or from `/etc/media-add.env` (mediabot-readable) on the SSH endpoint.
+- **Port check**: none of the media ports (32400, 139, 445, 9091, 51413, 8989,
+  7878, 9696, 8191) collide with the work stack (4566, 5432/55432/5433, 13000, 8093,
+  9083, 9000/9001/9100/9101).

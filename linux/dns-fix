@@ -1,0 +1,109 @@
+#!/bin/bash
+
+# dns-fix: Add public DNS fallback to /etc/resolv.conf
+# Usage: sudo ./dns-fix.sh           # apply
+#        sudo ./dns-fix.sh --restore  # revert to saved backup
+#        sudo ./dns-fix.sh --status   # show current state
+
+set -e
+
+RESOLV_CONF="/etc/resolv.conf"
+BACKUP_DIR="/etc/resolvconf-backups"
+BACKUP_FILE="${BACKUP_DIR}/resolv.conf.original"
+
+FALLBACK_NAMESERVERS=("1.1.1.1" "8.8.8.8")
+FALLBACK_OPTIONS="timeout:1 attempts:1"
+
+_require_sudo() {
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "Error: this script must be run as root (sudo)"
+    exit 1
+  fi
+}
+
+_backup() {
+  mkdir -p "$BACKUP_DIR"
+  if [ ! -f "$BACKUP_FILE" ]; then
+    cp "$RESOLV_CONF" "$BACKUP_FILE"
+    echo "  backup saved: $BACKUP_FILE"
+  else
+    echo "  backup already exists: $BACKUP_FILE"
+  fi
+}
+
+_has_fallback() {
+  grep -q 'nameserver 1\.1\.1\.1' "$RESOLV_CONF" 2>/dev/null
+}
+
+_apply() {
+  _require_sudo
+  _backup
+
+  if _has_fallback; then
+    echo "OK: public DNS fallback already present in $RESOLV_CONF"
+    return 0
+  fi
+
+  local header
+  header="$(head -1 "$RESOLV_CONF" 2>/dev/null || echo "# /etc/resolv.conf")"
+
+  {
+    echo "${header} - with public DNS fallback"
+    grep -v '^nameserver\|^options' "$RESOLV_CONF" 2>/dev/null || true
+    grep '^nameserver' "$RESOLV_CONF" 2>/dev/null || true
+    for ns in "${FALLBACK_NAMESERVERS[@]}"; do
+      echo "nameserver ${ns}"
+    done
+    echo "options ${FALLBACK_OPTIONS}"
+  } > "${RESOLV_CONF}.tmp"
+
+  mv "${RESOLV_CONF}.tmp" "$RESOLV_CONF"
+  echo "OK: public DNS fallback added"
+  echo "  nameservers: ${FALLBACK_NAMESERVERS[*]}"
+  echo "  options: ${FALLBACK_OPTIONS}"
+}
+
+_restore() {
+  _require_sudo
+
+  if [ ! -f "$BACKUP_FILE" ]; then
+    echo "Error: no backup found at $BACKUP_FILE"
+    echo "Nothing to restore."
+    exit 1
+  fi
+
+  cp "$BACKUP_FILE" "$RESOLV_CONF"
+  rm -f "$BACKUP_FILE"
+  echo "OK: restored original resolv.conf from backup"
+}
+
+_status() {
+  echo "=== Current $RESOLV_CONF ==="
+  cat "$RESOLV_CONF"
+  echo ""
+  if [ -f "$BACKUP_FILE" ]; then
+    echo "=== Backup available ==="
+    cat "$BACKUP_FILE"
+  else
+    echo "No backup saved yet."
+  fi
+}
+
+case "${1:-}" in
+  --restore|--revert|--undo)
+    _restore
+    ;;
+  --status|--check)
+    _status
+    ;;
+  --help|-h)
+    echo "Usage: sudo $0 [--restore|--status]"
+    echo ""
+    echo "  (no args)   Apply public DNS fallback (backup first)"
+    echo "  --restore   Restore backup and remove fallback"
+    echo "  --status    Show current resolv.conf state"
+    ;;
+  *)
+    _apply
+    ;;
+esac

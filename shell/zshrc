@@ -148,6 +148,12 @@ if [ -f "$HOME/repos/gcp/google-cloud-sdk/completion.zsh.inc" ]; then . "$HOME/r
 # Client profile (per-user on the Pi; no-op on the Mac / admin users)
 [ -f "$HOME/.clientrc" ] && source "$HOME/.clientrc"
 
+# Route Claude Code to local oc-go-cc proxy if enabled
+if [[ "${WORK_CLIENT_OPENCODE_PROXY:-0}" == "1" ]]; then
+    export ANTHROPIC_BASE_URL="http://127.0.0.1:3456"
+    export ANTHROPIC_AUTH_TOKEN="unused"
+fi
+
 [ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
 
 # Startup: direct interactive SSH into Linux workspaces should land in the
@@ -180,3 +186,6 @@ if [[ -o interactive ]] &&
    command -v tmux >/dev/null 2>&1; then
     exec tmux new-session -A -s repos -c "$HOME/repos"
 fi
+
+# opencode
+export PATH=/home/max/.opencode/bin:$PATH
