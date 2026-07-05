@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# clip-watch: poll the Mac clipboard and auto-push changes to the remote
+# workstation's clipboard (see clip-push, linux/clip-recv). Run persistently
+# by com.dotfiles.clip-watch.plist so Ctrl+V for images just works without a
+# manual step. Disable by unloading that LaunchAgent.
+set -euo pipefail
+
+target="${CLIP_PUSH_TARGET:-workstation}"
+push="$HOME/.local/bin/clip-push"
+last=""
+
+while true; do
+    cur="$({ pbpaste 2>/dev/null; command -v pngpaste >/dev/null 2>&1 && pngpaste - 2>/dev/null; } | md5)"
+    if [ "$cur" != "$last" ]; then
+        last="$cur"
+        "$push" "$target" >/dev/null 2>&1 || true
+    fi
+    sleep 1
+done

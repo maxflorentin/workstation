@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# clip-recv: receive clipboard content pushed over SSH from the Mac and land
+# it in an X11 clipboard that xclip (and therefore Claude Code's clipboard
+# check) can actually read on this headless box.
+#
+# Usage (run remotely via ssh, stdin carries the payload):
+#   ssh <user>@workstation clip-recv text  < some.txt
+#   ssh <user>@workstation clip-recv image < some.png
+#
+# Each Unix user gets its own private virtual X display (derived from UID),
+# so client accounts never share a clipboard with each other or with max.
+set -euo pipefail
+
+kind="${1:-text}"
+disp=":$(( $(id -u) + 50 ))"
+export DISPLAY="$disp"
+
+if ! command -v Xvfb >/dev/null 2>&1; then
+    echo "clip-recv: Xvfb not installed (sudo apt-get install -y xvfb)" >&2
+    exit 1
+fi
+if ! command -v xclip >/dev/null 2>&1; then
+    echo "clip-recv: xclip not installed" >&2
+    exit 1
+fi
+
+if [ ! -S "/tmp/.X11-unix/X${disp#:}" ]; then
+    Xvfb "$disp" -screen 0 8x8x24 >/dev/null 2>&1 &
+    disown
+    for _ in $(seq 1 20); do
+        [ -S "/tmp/.X11-unix/X${disp#:}" ] && break
+        sleep 0.1
+    done
+fi
+
+case "$kind" in
+    image) xclip -display "$disp" -selection clipboard -t image/png -i ;;
+    text)  xclip -display "$disp" -selection clipboard -t text/plain -i ;;
+    *) echo "clip-recv: unknown kind '$kind' (use text|image)" >&2; exit 1 ;;
+esac

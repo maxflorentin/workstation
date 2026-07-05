@@ -90,6 +90,18 @@ if [ "$OS" = "Darwin" ]; then
     # work CLI (manage workstation from Mac)
     ln -sf "$DOTFILES/linux/work" "$HOME/.local/bin/work"
 
+    # clip-push / clip-watch: push Mac clipboard (image or text) into the
+    # workstation's clipboard over SSH (see linux/clip-recv). clip-watch runs
+    # as a LaunchAgent, polling and pushing automatically on every change.
+    ln -sf "$DOTFILES/macos/clip-push" "$HOME/.local/bin/clip-push"
+    ln -sf "$DOTFILES/macos/clip-watch" "$HOME/.local/bin/clip-watch"
+    mkdir -p "$HOME/Library/LaunchAgents"
+    ln -sf "$DOTFILES/macos/com.dotfiles.clip-watch.plist" "$HOME/Library/LaunchAgents/com.dotfiles.clip-watch.plist"
+    launchctl unload "$HOME/Library/LaunchAgents/com.dotfiles.clip-watch.plist" 2>/dev/null || true
+    launchctl load "$HOME/Library/LaunchAgents/com.dotfiles.clip-watch.plist" 2>/dev/null && \
+        echo "  macos: clip-watch loaded (auto-push clipboard to \$CLIP_PUSH_TARGET, default 'workstation')" || \
+        echo "  macos: WARNING clip-watch failed to load"
+
     echo "  macos: mackup, work cli"
     echo ""
     echo "Fresh Mac? Run: $DOTFILES/macos/fresh.sh"
@@ -118,6 +130,10 @@ if [ "$OS" = "Linux" ]; then
 
     # DNS fix script (add public fallback to resolve internet from Tailscale)
     [ -f "$DOTFILES/linux/dns-fix" ] && ln -sf "$DOTFILES/linux/dns-fix" "$HOME/.local/bin/dns-fix"
+
+    # clip-recv: lands clipboard content pushed from the Mac into this user's
+    # private Xvfb clipboard (see shell/zshrc DISPLAY export)
+    [ -f "$DOTFILES/linux/clip-recv" ] && ln -sf "$DOTFILES/linux/clip-recv" "$HOME/.local/bin/clip-recv"
 
     # work-tracker crons (pulse every 5 min; monthly report snapshot)
     if [ -x "$HOME/.local/bin/work-tracker" ]; then

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# clip-push: send whatever's on the Mac clipboard right now to a remote
+# host's X11 clipboard (see linux/clip-recv), so Ctrl+V for images works
+# inside Claude Code over SSH. Prefers an image if one is on the clipboard,
+# otherwise sends plain text.
+#
+# Usage: clip-push [user@]host   (defaults to $CLIP_PUSH_TARGET or "workstation")
+set -euo pipefail
+
+target="${1:-${CLIP_PUSH_TARGET:-workstation}}"
+
+tmp="$(mktemp)"
+trap 'rm -f "$tmp"' EXIT
+
+if command -v pngpaste >/dev/null 2>&1 && pngpaste "$tmp" >/dev/null 2>&1 && [ -s "$tmp" ]; then
+    ssh "$target" clip-recv image < "$tmp"
+    exit 0
+fi
+
+pbpaste | ssh "$target" clip-recv text

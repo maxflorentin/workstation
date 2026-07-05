@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# tmux status-bar widget: RAM / CPU load / disk free.
+# Linux + macOS. Prints tmux format codes directly; falls back to "--" per
+# segment (never errors) so a missing sensor doesn't break the status bar.
+# Colors follow the kyanite palette already used in tmux.conf.
+
+ACCENT="#1687ad"
+ALERT="#ff5d7a"
+
+ram() {
+    if [ -r /proc/meminfo ]; then
+        awk '
+            /MemTotal:/     {t=$2}
+            /MemAvailable:/ {a=$2}
+            END {
+                if (t) {
+                    used=(t-a)/1024/1024
+                    tot=t/1024/1024
+                    pct=(t-a)/t*100
+                    printf "%.1fG/%.0fG %.0f", used, tot, pct
+                } else print "-- --"
+            }' /proc/meminfo
+    elif command -v sysctl >/dev/null 2>&1; then
+        tot=$(sysctl -n hw.memsize 2>/dev/null)
+        [ -z "$tot" ] && { echo "-- --"; return; }
+        pages=$(vm_stat 2>/dev/null | awk '/Pages free/{f=$3} /Pages active/{a=$3} /Pages inactive/{i=$3} /Pages wired/{w=$4} END{gsub(/\./,"",f); gsub(/\./,"",a); gsub(/\./,"",i); gsub(/\./,"",w); print a+i+w}')
+        [ -z "$pages" ] && { echo "-- --"; return; }
+        used=$(echo "$pages * 4096 / 1024 / 1024 / 1024" | bc 2>/dev/null)
+        totg=$(echo "$tot / 1024 / 1024 / 1024" | bc 2>/dev/null)
+        [ -z "$used" ] || [ -z "$totg" ] && { echo "-- --"; return; }
+        pct=$(( totg > 0 ? used * 100 / totg : 0 ))
+        printf "%sG/%sG %s" "$used" "$totg" "$pct"
+    else
+        echo "-- --"
+    fi
+}
+
+cpu_load() {
+    if [ -r /proc/loadavg ]; then
+        awk '{print $1}' /proc/loadavg
+    elif command -v sysctl >/dev/null 2>&1; then
+        sysctl -n vm.loadavg 2>/dev/null | awk '{print $2}'
+    else
+        echo "--"
+    fi
+}
+
+cpu_cores() {
+    if command -v nproc >/dev/null 2>&1; then
+        nproc
+    elif command -v sysctl >/dev/null 2>&1; then
+        sysctl -n hw.ncpu 2>/dev/null
+    else
+        echo 1
+    fi
+}
+
+disk_free() {
+    df -Ph "$HOME" 2>/dev/null | awk 'NR==2{print $4}'
+}
+
+read -r ram_used_tot ram_pct <<EOF
+$(ram)
+EOF
+load="$(cpu_load)"
+cores="$(cpu_cores)"
+disk="$(disk_free)"
+
+ram_color="$ACCENT"
+[ -n "$ram_pct" ] && [ "$ram_pct" != "--" ] && [ "$ram_pct" -ge 90 ] 2>/dev/null && ram_color="$ALERT"
+
+load_color="$ACCENT"
+if [ -n "$load" ] && [ "$load" != "--" ] && [ -n "$cores" ]; then
+    over=$(awk -v l="$load" -v c="$cores" 'BEGIN{print (l>=c)?1:0}' 2>/dev/null)
+    [ "$over" = "1" ] && load_color="$ALERT"
+fi
+
+printf '#[fg=%s]%s #[fg=%s]%s #[fg=%s]%s' \
+    "$ram_color" "${ram_used_tot:---}" \
+    "$load_color" "${load:---}" \
+    "$ACCENT" "${disk:---}"

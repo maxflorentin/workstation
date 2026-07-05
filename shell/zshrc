@@ -156,6 +156,13 @@ fi
 
 [ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
 
+# Give xclip (and Claude Code's own clipboard check) a real X11 clipboard to
+# read on this headless box. Each user gets a private virtual display keyed
+# off their UID, matching what clip-recv uses when the Mac pushes into it.
+if [[ "$(uname -s)" == "Linux" ]] && [[ -z "${DISPLAY:-}" ]]; then
+    export DISPLAY=":$(( $(id -u) + 50 ))"
+fi
+
 # Startup: direct interactive SSH into Linux workspaces should land in the
 # canonical tmux/workmux layout. Disable for one remote shell with:
 #   ssh -t <user>@workstation 'TMUX_AUTO_ATTACH=0 exec zsh -l'
