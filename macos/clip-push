@@ -13,8 +13,7 @@ tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 
 if command -v pngpaste >/dev/null 2>&1 && pngpaste "$tmp" >/dev/null 2>&1 && [ -s "$tmp" ]; then
-    ssh "$target" clip-recv image < "$tmp"
-    exit 0
+    exec ssh "$target" '~/.local/bin/clip-recv' image < "$tmp"
 fi
 
-pbpaste | ssh "$target" clip-recv text
+pbpaste | ssh "$target" '~/.local/bin/clip-recv' text
