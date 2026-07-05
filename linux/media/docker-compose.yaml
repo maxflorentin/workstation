@@ -182,6 +182,33 @@ services:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
 
+  # Subtitles companion for Sonarr/Radarr: downloads subs from multiple
+  # providers for everything they import, and auto-syncs offset/drift against
+  # the audio (ffsubsync). Same ${STORAGE}:/data view as sonarr/radarr, so no
+  # path mappings are needed.
+  bazarr:
+    image: lscr.io/linuxserver/bazarr:latest
+    container_name: media-bazarr
+    dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG}/bazarr:/config
+      - ${STORAGE}:/data
+    ports:
+      - "6767:6767"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
   # Solves Cloudflare/DDoS-Guard challenges so Prowlarr can reach protected
   # indexers. Runs a headless Chromium, so it's the heaviest service when
   # active — capped accordingly. Prowlarr reaches it at http://flaresolverr:8191

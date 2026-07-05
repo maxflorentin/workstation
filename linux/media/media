@@ -95,7 +95,7 @@ cmd_setup() {
         "$media/movies" "$media/tv" "$media/music" \
         "$storage/torrents/watch" \
         "$config/plex" "$config/transmission" \
-        "$config/sonarr" "$config/radarr" "$config/prowlarr" \
+        "$config/sonarr" "$config/radarr" "$config/prowlarr" "$config/bazarr" \
         "$transcode"
     sudo chown -R "$puid:$pgid" "$storage"
 
@@ -127,7 +127,7 @@ cmd_status() {
     docker stats --no-stream \
         --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' \
         media-plex media-samba media-transmission \
-        media-sonarr media-radarr media-prowlarr 2>/dev/null || true
+        media-sonarr media-radarr media-prowlarr media-bazarr 2>/dev/null || true
     echo ""
     local host
     host="$(hostname -s 2>/dev/null || hostname)"
@@ -137,12 +137,13 @@ cmd_status() {
     echo "  Sonarr:       http://$host:8989"
     echo "  Radarr:       http://$host:7878"
     echo "  Prowlarr:     http://$host:9696"
+    echo "  Bazarr:       http://$host:6767"
     echo "  Samba:        smb://$host  (shares: media, downloads)"
 }
 
 usage() {
     cat <<EOF
-media: workstation media stack (Plex + Samba + Transmission + Sonarr/Radarr/Prowlarr)
+media: workstation media stack (Plex + Samba + Transmission + Sonarr/Radarr/Prowlarr/Bazarr)
 
 Setup:
   media setup [--force]   Create 'media' user, dirs, and .env (one time)

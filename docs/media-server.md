@@ -14,6 +14,7 @@ Services (managed by the `media` CLI, `linux/media/`):
 | FlareSolverr   | `ghcr.io/flaresolverr/flaresolverr`| 8191               | Solves Cloudflare for indexers   |
 | Sonarr         | `lscr.io/linuxserver/sonarr`       | 8989               | TV: track shows, grab episodes   |
 | Radarr         | `lscr.io/linuxserver/radarr`       | 7878               | Movies: track + grab             |
+| Bazarr         | `lscr.io/linuxserver/bazarr`       | 6767               | Subtitles: fetch + auto-sync     |
 
 You request content conversationally through the **hermes** agent on Telegram,
 which calls the `media-add` CLI over a locked-down SSH endpoint (see
@@ -32,7 +33,7 @@ download through Transmission, and import into the Plex library automatically.
   stack (postgres, trino, metabase, ...). Each media service is capped via
   `deploy.resources.limits` so it can't starve work containers:
   Plex 2 CPU / 2 GB, Transmission 1 CPU / 1 GB, Samba 1 CPU / 512 MB,
-  Sonarr/Radarr 1 CPU / 512 MB each, Prowlarr 0.5 CPU / 512 MB.
+  Sonarr/Radarr 1 CPU / 512 MB each, Prowlarr/Bazarr 0.5 CPU / 512 MB each.
 - **Single `/data` mount for hardlinks.** Sonarr/Radarr mount the whole
   `${STORAGE}` as `/data` so the download dir (`/data/torrents`) and the library
   (`/data/library/*`) share one filesystem device inside the container —
@@ -113,6 +114,7 @@ Endpoints (on the LAN / over Tailscale):
 - Sonarr: `http://<workstation>:8989`
 - Radarr: `http://<workstation>:7878`
 - Prowlarr: `http://<workstation>:9696`
+- Bazarr: `http://<workstation>:6767`
 - Samba: `smb://<workstation>` — shares `media`, `downloads`
 
 ## Indexers (your sources)
@@ -160,5 +162,5 @@ ssh -F /opt/hermes-ssh/config media 'series search Severance'
   committed (see `docs/client-boundaries.md`). `media-add` reads the keys from
   there, or from `/etc/media-add.env` (mediabot-readable) on the SSH endpoint.
 - **Port check**: none of the media ports (32400, 139, 445, 9091, 51413, 8989,
-  7878, 9696, 8191) collide with the work stack (4566, 5432/55432/5433, 13000, 8093,
-  9083, 9000/9001/9100/9101).
+  7878, 9696, 6767, 8191) collide with the work stack (4566, 5432/55432/5433, 13000,
+  8093, 9083, 9000/9001/9100/9101).
