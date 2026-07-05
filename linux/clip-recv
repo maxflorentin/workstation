@@ -33,8 +33,13 @@ if [ ! -S "/tmp/.X11-unix/X${disp#:}" ]; then
     done
 fi
 
+# xclip -i reads stdin then forks into the background to stay alive as the
+# clipboard owner (X11 has no persistent clipboard storage). Redirect its
+# stdout/stderr away so that backgrounded copy doesn't hold the SSH channel
+# open — otherwise the ssh command on the Mac hangs even after the copy
+# has already succeeded.
 case "$kind" in
-    image) xclip -display "$disp" -selection clipboard -t image/png -i ;;
-    text)  xclip -display "$disp" -selection clipboard -t text/plain -i ;;
+    image) xclip -display "$disp" -selection clipboard -t image/png -i >/dev/null 2>&1 ;;
+    text)  xclip -display "$disp" -selection clipboard -t text/plain -i >/dev/null 2>&1 ;;
     *) echo "clip-recv: unknown kind '$kind' (use text|image)" >&2; exit 1 ;;
 esac
