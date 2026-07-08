@@ -163,27 +163,6 @@ if [[ "$(uname -s)" == "Linux" ]] && [[ -z "${DISPLAY:-}" ]]; then
     export DISPLAY=":$(( $(id -u) + 50 ))"
 fi
 
-# Startup: direct interactive SSH into Linux workspaces should land in the
-# canonical tmux/workmux layout. Disable for one remote shell with:
-#   ssh -t <user>@workstation 'TMUX_AUTO_ATTACH=0 exec zsh -l'
-if [[ -o interactive ]] &&
-   [[ -z "${TMUX:-}" ]] &&
-   [[ "${TMUX_AUTO_ATTACH:-1}" != "0" ]] &&
-   [[ "$(uname -s)" == "Linux" ]] &&
-   [[ -n "${SSH_TTY:-${SSH_CONNECTION:-}}" ]]; then
-    if command -v tmux-layout >/dev/null 2>&1; then
-        tmux-layout
-        rc=$?
-        printf '\033[?1l\033>\033[?1000l\033[?1002l\033[?1003l\033[?1004l\033[?1005l\033[?1006l\033[?1015l\033[?2004l\033[0m'
-        exit "$rc"
-    elif [[ -x "$HOME/.dotfiles/linux/tmux-layout" ]]; then
-        "$HOME/.dotfiles/linux/tmux-layout"
-        rc=$?
-        printf '\033[?1l\033>\033[?1000l\033[?1002l\033[?1003l\033[?1004l\033[?1005l\033[?1006l\033[?1015l\033[?2004l\033[0m'
-        exit "$rc"
-    fi
-fi
-
 # Startup: shells opened directly in ~/repos should land in tmux.
 # Disable for one shell with: TMUX_AUTO_ATTACH=0 zsh
 if [[ -o interactive ]] &&
