@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# media-watchlist-sync: trigger Sonarr/Radarr import-list sync (Plex Watchlist).
+#
+# Both apps only poll import lists every ~6 hours; this makes "add to Plex
+# watchlist -> shows up in Sonarr/Radarr" feel immediate when run from cron:
+#   */15 * * * * ~/.dotfiles/linux/media/media-watchlist-sync
+#
+# API keys are read from the media .env (same source as media-add).
+
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    TARGET="$(readlink "$SOURCE")"
+    case "$TARGET" in
+        /*) SOURCE="$TARGET" ;;
+        *) SOURCE="$DIR/$TARGET" ;;
+    esac
+done
+ENV_FILE="$(cd -P "$(dirname "$SOURCE")" && pwd)/.env"
+[ -f "$ENV_FILE" ] || { echo "media-watchlist-sync: no $ENV_FILE" >&2; exit 1; }
+
+env_get() {
+    awk -F= -v k="$1" '$0 ~ "^"k"=" {sub("^"k"=",""); print; exit}' "$ENV_FILE"
+}
+
+sync_one() { # name port api_key
+    curl -sf -o /dev/null -X POST "http://localhost:$2/api/v3/command" \
+        -H "X-Api-Key: $3" -H 'Content-Type: application/json' \
+        -d '{"name":"ImportListSync"}' \
+        || echo "media-watchlist-sync: $1 sync failed" >&2
+}
+
+sync_one sonarr 8989 "$(env_get SONARR_API_KEY)"
+sync_one radarr 7878 "$(env_get RADARR_API_KEY)"
