@@ -209,6 +209,31 @@ services:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
 
+  # Music: like sonarr/radarr but per artist/album. Same single /data mount
+  # for hardlink imports (transmission /downloads -> /data/torrents mapping).
+  lidarr:
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: media-lidarr
+    dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG}/lidarr:/config
+      - ${STORAGE}:/data
+    ports:
+      - "8686:8686"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
   # Plex monitoring: watch history/stats and "new content added" notifications
   # (Telegram). Watches Plex directly over the host's Tailscale IP since Plex
   # runs on the host network.

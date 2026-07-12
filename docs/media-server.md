@@ -14,6 +14,7 @@ Services (managed by the `media` CLI, `linux/media/`):
 | FlareSolverr   | `ghcr.io/flaresolverr/flaresolverr`| 8191               | Solves Cloudflare for indexers   |
 | Sonarr         | `lscr.io/linuxserver/sonarr`       | 8989               | TV: track shows, grab episodes   |
 | Radarr         | `lscr.io/linuxserver/radarr`       | 7878               | Movies: track + grab             |
+| Lidarr         | `lscr.io/linuxserver/lidarr`       | 8686               | Music: track artists, grab FLAC  |
 | Bazarr         | `lscr.io/linuxserver/bazarr`       | 6767               | Subtitles: fetch + auto-sync     |
 | Tautulli       | `lscr.io/linuxserver/tautulli`     | 8181               | Plex stats + new-content notifs  |
 
@@ -114,6 +115,7 @@ Endpoints (on the LAN / over Tailscale):
 - Transmission: `http://<workstation>:9091`
 - Sonarr: `http://<workstation>:8989`
 - Radarr: `http://<workstation>:7878`
+- Lidarr: `http://<workstation>:8686`
 - Prowlarr: `http://<workstation>:9696`
 - Bazarr: `http://<workstation>:6767`
 - Tautulli: `http://<workstation>:8181`
