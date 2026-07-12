@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# media-backup: snapshot the media stack's configs to the internal SSD.
+#
+# Everything under ${CONFIG} (Plex DB, sonarr/radarr/prowlarr/bazarr,
+# transmission) lives on the same external disk as the media itself; if that
+# disk dies, the library is re-downloadable but the configs are not. This
+# tars them to $DEST daily, skipping Plex's bulky regenerable dirs
+# (Logs, Cache, Codecs, Crash Reports).
+#
+# Some config files are only readable by the 'media' user, so the tar runs
+# as root inside a throwaway container (docker group access instead of sudo).
+#
+# Cron: 0 5 * * * ~/.dotfiles/linux/media/media-backup
+
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    TARGET="$(readlink "$SOURCE")"
+    case "$TARGET" in
+        /*) SOURCE="$TARGET" ;;
+        *) SOURCE="$DIR/$TARGET" ;;
+    esac
+done
+ENV_FILE="$(cd -P "$(dirname "$SOURCE")" && pwd)/.env"
+
+CONFIG="$(awk -F= '$0 ~ "^CONFIG=" {sub("^CONFIG=",""); print; exit}' "$ENV_FILE")"
+[ -n "$CONFIG" ] && [ -d "$CONFIG" ] || { echo "media-backup: CONFIG dir not found" >&2; exit 1; }
+
+DEST="${MEDIA_BACKUP_DEST:-$HOME/backups/media}"
+KEEP="${MEDIA_BACKUP_KEEP:-14}"
+mkdir -p "$DEST"
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+OUT="media-config-$STAMP.tar.gz"
+
+docker run --rm \
+    -v "$CONFIG":/src:ro \
+    -v "$DEST":/dest \
+    -e "OUT=$OUT" \
+    alpine sh -c '
+        tar czf "/dest/$OUT.tmp" -C /src \
+            --exclude "plex/Library/Application Support/Plex Media Server/Logs" \
+            --exclude "plex/Library/Application Support/Plex Media Server/Cache" \
+            --exclude "plex/Library/Application Support/Plex Media Server/Codecs" \
+            --exclude "plex/Library/Application Support/Plex Media Server/Crash Reports" \
+            --exclude "*/logs" \
+            --exclude "*/Backups" \
+            . && mv "/dest/$OUT.tmp" "/dest/$OUT" && chown '"$(id -u):$(id -g)"' "/dest/$OUT"
+    '
+
+# rotate: keep the newest $KEEP snapshots
+ls -1t "$DEST"/media-config-*.tar.gz 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm --
+
+echo "media-backup: $DEST/$OUT ($(du -h "$DEST/$OUT" | cut -f1))"

@@ -15,6 +15,7 @@ Services (managed by the `media` CLI, `linux/media/`):
 | Sonarr         | `lscr.io/linuxserver/sonarr`       | 8989               | TV: track shows, grab episodes   |
 | Radarr         | `lscr.io/linuxserver/radarr`       | 7878               | Movies: track + grab             |
 | Bazarr         | `lscr.io/linuxserver/bazarr`       | 6767               | Subtitles: fetch + auto-sync     |
+| Tautulli       | `lscr.io/linuxserver/tautulli`     | 8181               | Plex stats + new-content notifs  |
 
 You request content conversationally through the **hermes** agent on Telegram,
 which calls the `media-add` CLI over a locked-down SSH endpoint (see
@@ -115,6 +116,7 @@ Endpoints (on the LAN / over Tailscale):
 - Radarr: `http://<workstation>:7878`
 - Prowlarr: `http://<workstation>:9696`
 - Bazarr: `http://<workstation>:6767`
+- Tautulli: `http://<workstation>:8181`
 - Samba: `smb://<workstation>` — shares `media`, `downloads`
 
 ## Indexers (your sources)
@@ -154,6 +156,15 @@ sudo bash ~/.dotfiles/linux/media/hermes-media-skill.sh   # /media agent skill
 # test from the hermes side:
 ssh -F /opt/hermes-ssh/config media 'series search Severance'
 ```
+
+## Cron jobs (operator's crontab)
+
+- `media-watchlist-sync` (every 15 min): triggers Sonarr/Radarr ImportListSync
+  so Plex Watchlist adds show up promptly (the apps only poll every ~6 h).
+- `media-backup` (daily 05:00): tars `${CONFIG}` (Plex DB + *arr/Bazarr/
+  Tautulli configs, minus Plex logs/cache) to `~/backups/media/` on the
+  internal SSD, keeping the last 14. The media library shares the external
+  disk with these configs; the library is re-downloadable, the configs aren't.
 
 ## Notes
 

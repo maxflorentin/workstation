@@ -209,6 +209,31 @@ services:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
 
+  # Plex monitoring: watch history/stats and "new content added" notifications
+  # (Telegram). Watches Plex directly over the host's Tailscale IP since Plex
+  # runs on the host network.
+  tautulli:
+    image: lscr.io/linuxserver/tautulli:latest
+    container_name: media-tautulli
+    dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
+    environment:
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - TZ=${TZ}
+    volumes:
+      - ${CONFIG}/tautulli:/config
+    ports:
+      - "8181:8181"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
   # Solves Cloudflare/DDoS-Guard challenges so Prowlarr can reach protected
   # indexers. Runs a headless Chromium, so it's the heaviest service when
   # active — capped accordingly. Prowlarr reaches it at http://flaresolverr:8191
