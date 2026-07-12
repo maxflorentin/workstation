@@ -15,6 +15,8 @@ Services (managed by the `media` CLI, `linux/media/`):
 | Sonarr         | `lscr.io/linuxserver/sonarr`       | 8989               | TV: track shows, grab episodes   |
 | Radarr         | `lscr.io/linuxserver/radarr`       | 7878               | Movies: track + grab             |
 | Lidarr         | `lscr.io/linuxserver/lidarr`       | 8686               | Music: track artists, grab FLAC  |
+| slskd          | `slskd/slskd`                      | 5030, 50300        | Soulseek client (indie music)    |
+| Soularr        | `mrusse08/soularr`                 | —                  | Lidarr wanted -> slskd bridge    |
 | Bazarr         | `lscr.io/linuxserver/bazarr`       | 6767               | Subtitles: fetch + auto-sync     |
 | Tautulli       | `lscr.io/linuxserver/tautulli`     | 8181               | Plex stats + new-content notifs  |
 
@@ -116,6 +118,7 @@ Endpoints (on the LAN / over Tailscale):
 - Sonarr: `http://<workstation>:8989`
 - Radarr: `http://<workstation>:7878`
 - Lidarr: `http://<workstation>:8686`
+- slskd: `http://<workstation>:5030`
 - Prowlarr: `http://<workstation>:9696`
 - Bazarr: `http://<workstation>:6767`
 - Tautulli: `http://<workstation>:8181`
@@ -158,6 +161,20 @@ sudo bash ~/.dotfiles/linux/media/hermes-media-skill.sh   # /media agent skill
 # test from the hermes side:
 ssh -F /opt/hermes-ssh/config media 'series search Severance'
 ```
+
+## Music via Soulseek (slskd + Soularr)
+
+Public torrent trackers are weak for indie/regional music; Soulseek is where
+that catalog lives. Soularr polls Lidarr's wanted albums every 10 min,
+searches Soulseek through slskd (preferring hi-res FLAC, falling back to
+mp3 320), downloads to `${STORAGE}/slskd/downloads`, and triggers the Lidarr
+import. Failed searches are retried each cycle — availability depends on who
+is online, so a miss now often lands later.
+
+Secrets (Soulseek account, slskd API key, Lidarr API key) live in
+`${CONFIG}/slskd/slskd.yml` and `${CONFIG}/soularr/config.ini` (host-local),
+mirrored in envy context `max` (`SLSKD_*`). The music library is shared
+read-only on the network — expected Soulseek etiquette.
 
 ## Cron jobs (operator's crontab)
 

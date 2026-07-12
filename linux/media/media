@@ -96,7 +96,8 @@ cmd_setup() {
         "$storage/torrents/watch" \
         "$config/plex" "$config/transmission" \
         "$config/sonarr" "$config/radarr" "$config/prowlarr" "$config/bazarr" \
-        "$config/tautulli" "$config/lidarr" \
+        "$config/tautulli" "$config/lidarr" "$config/slskd" "$config/soularr" \
+        "$storage/slskd/downloads" "$storage/slskd/incomplete" \
         "$transcode"
     sudo chown -R "$puid:$pgid" "$storage"
 
@@ -128,7 +129,8 @@ cmd_status() {
     docker stats --no-stream \
         --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' \
         media-plex media-samba media-transmission \
-        media-sonarr media-radarr media-lidarr media-prowlarr media-bazarr media-tautulli 2>/dev/null || true
+        media-sonarr media-radarr media-lidarr media-prowlarr media-bazarr \
+        media-tautulli media-slskd media-soularr 2>/dev/null || true
     echo ""
     local host
     host="$(hostname -s 2>/dev/null || hostname)"
@@ -138,6 +140,7 @@ cmd_status() {
     echo "  Sonarr:       http://$host:8989"
     echo "  Radarr:       http://$host:7878"
     echo "  Lidarr:       http://$host:8686"
+    echo "  slskd:        http://$host:5030"
     echo "  Prowlarr:     http://$host:9696"
     echo "  Bazarr:       http://$host:6767"
     echo "  Tautulli:     http://$host:8181"

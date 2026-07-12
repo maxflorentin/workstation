@@ -234,6 +234,59 @@ services:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
 
+  # Soulseek client (headless) — the source that actually has indie/regional
+  # music in FLAC, where public torrent trackers come up empty. Soularr bridges
+  # it to Lidarr. Account and API key live in slskd.yml (host-local, seeded
+  # from envy by media-slskd-setup; see docs). Shares the music library
+  # read-only, which is expected etiquette on the network.
+  slskd:
+    image: slskd/slskd:latest
+    container_name: media-slskd
+    user: "${PUID}:${PGID}"
+    dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
+    environment:
+      - SLSKD_REMOTE_CONFIGURATION=false
+    volumes:
+      - ${CONFIG}/slskd:/app
+      - ${STORAGE}/slskd/downloads:/downloads
+      - ${STORAGE}/slskd/incomplete:/incomplete
+      - ${MEDIA}/music:/music:ro
+    ports:
+      - "5030:5030"
+      - "50300:50300"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Bridge: polls Lidarr's wanted/missing albums and fulfills them via slskd
+  # (Soulseek), then triggers the Lidarr import. Runs every INTERVAL seconds.
+  soularr:
+    image: mrusse08/soularr:latest
+    container_name: media-soularr
+    user: "${PUID}:${PGID}"
+    dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
+    environment:
+      - TZ=${TZ}
+      - SCRIPT_INTERVAL=600
+    volumes:
+      - ${CONFIG}/soularr:/data
+      - ${STORAGE}/slskd/downloads:/downloads
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
   # Plex monitoring: watch history/stats and "new content added" notifications
   # (Telegram). Watches Plex directly over the host's Tailscale IP since Plex
   # runs on the host network.
