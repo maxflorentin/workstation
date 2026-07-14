@@ -21,10 +21,25 @@ Services (managed by the `media` CLI, `linux/media/`):
 | Tautulli       | `lscr.io/linuxserver/tautulli`     | 8181               | Plex stats + new-content notifs  |
 | Uptime Kuma    | `louislam/uptime-kuma`             | 3001               | Status dashboard + TG alerts     |
 
-You request content conversationally through the **hermes** agent on Telegram,
-which calls the `media-add` CLI over a locked-down SSH endpoint (see
-"hermes integration" below). Sonarr/Radarr then search via Prowlarr's indexers,
-download through Transmission, and import into the Plex library automatically.
+## How content flows in
+
+Three entry points, one pipeline. Sonarr/Radarr/Lidarr search via Prowlarr's
+indexers (music also via Soulseek), download through Transmission (or slskd),
+import into the Plex library with hardlinks, Bazarr fetches + syncs Spanish
+subtitles, Tautulli pings Telegram when it lands in Plex, and the finished
+torrent is seeded to ratio 1.0 (or 30 min idle) then removed automatically.
+
+1. **Plex Watchlist**: tap "Add to Watchlist" in any Plex app. Sonarr/Radarr
+   import lists (authed with the server account token) pick it up within
+   15 min (`media-watchlist-sync` cron; the apps alone only poll every ~6 h).
+   If something never shows up, it's usually a Plex→TMDB mapping failure —
+   add it by id in the Radarr UI.
+2. **Telegram (hermes)**: tappable commands `/m <title>` (series+movies),
+   `/mm <artist>` (music), `/mst` (status) — deterministic `media-tg` plugin,
+   no model in the loop. Natural language also works at any point in a
+   conversation ("bajame la peli X") — the media knowledge lives in the
+   agent's SOUL.md, no `/media` invocation needed.
+3. **Web UIs** directly (add artist in Lidarr, movie in Radarr, etc.).
 
 ## Why this differs from plex-rpi
 
@@ -126,6 +141,26 @@ Endpoints (on the LAN / over Tailscale):
 - Uptime Kuma: `http://<workstation>:3001` (creds in envy `max`: `UPTIMEKUMA_*`)
 - Samba: `smb://<workstation>` — shares `media`, `downloads`
 
+## Quality policy (movies/TV)
+
+- Everything uses the **HD-1080p** profile; quality definitions cap sizes at
+  preferred ~15 MB/min (≈2 GB/movie) and max 40 MB/min (≈5 GB), so 45 GB
+  remuxes never get grabbed.
+- Radarr custom formats bias hardcoded-sub releases: `Hardsubs` (VOSTFR, HC,
+  KORSUB, ...) scores −50, `Hardsubs ES` (SUBESP, CASTELLANO, LATINO) +40,
+  profile min score −1000 — clean releases win, but when only hardsubs exist,
+  the Spanish one is picked. Unadvertised hardsubs can't be detected.
+- Music uses the **Lossless** profile (FLAC / FLAC 24-bit); Soularr prefers
+  hi-res FLAC and falls back to mp3 320.
+
+## Subtitles (Bazarr)
+
+Bazarr watches Sonarr/Radarr imports, fetches Spanish subs (profile
+"Español") from opensubtitles.com + subtis + subtitulamos.tv + yifysubtitles +
+embedded tracks, and **auto-syncs offset/drift** against the audio (ffsubsync).
+OpenSubtitles creds live in envy (`OPENSUBTITLES_*`) — the login must be the
+**username, not the email**; on auth errors Bazarr throttles the provider 12 h.
+
 ## Indexers (your sources)
 
 Sonarr/Radarr can't find releases until **Prowlarr** has indexers. Add them in
@@ -145,24 +180,38 @@ You add content by talking to the **hermes** agent on Telegram; it runs the
 Telegram token.
 
 - **`media-add`** (`linux/media/media-add`): searches + adds via the Sonarr/
-  Radarr APIs. Verbs: `series search|add`, `movie search|add`, `status`.
-  Symlinked to `~/.local/bin/media-add` for direct use too.
+  Radarr/Lidarr APIs. Verbs: `series search|add`, `movie search|add`,
+  `artist search|add`, `status`. Symlinked to `~/.local/bin/media-add`.
 - **Locked-down access**: `hermes-media-setup.sh` (run once, with sudo) creates
   a `mediabot` user whose SSH `authorized_keys` **forces** the
   `hermes-media-dispatch` command — the hermes key can run *only* `media-add`,
   never a shell. The dispatcher whitelists the verbs and passes args via `exec`
   (no shell), so injection like `series; rm -rf /` is inert.
-- **Agent skill**: `hermes-media-skill.sh` installs a `/media` skill so the
-  agent knows the commands and the search-then-confirm flow.
+- **Three agent-side layers** (hermes repo, `hermes/`):
+  - `SOUL.md` media section — always in the agent's context, so natural
+    language works mid-conversation without invoking any skill.
+  - `/media` skill (`hermes-media-skill.sh`) — detailed operating notes the
+    model can pull in.
+  - `media-tg` plugin (`hermes/plugins/media-tg/`) — deterministic tappable
+    commands (`/m`, `/mm`, `/mst` → `/madd_tv_<id>`, `/ma_<n>`), modeled on
+    workmux-tg; no LLM call, state lives in the plugin. NOTE: hermes plugins
+    must live in `~hermes/.hermes/plugins/<name>/` **and** be listed under
+    `plugins.enabled` in the gateway config — copying alone silently no-ops.
 
-Activate (on the workstation, needs sudo):
+Activate everything (idempotent, needs sudo):
 
 ```bash
-sudo bash ~/.dotfiles/linux/media/hermes-media-setup.sh   # mediabot + forced-command
-sudo bash ~/.dotfiles/linux/media/hermes-media-skill.sh   # /media agent skill
+sudo bash ~/.dotfiles/hermes/install-media-tg.sh
+# (runs hermes-media-setup.sh + hermes-media-skill.sh, installs + enables the
+#  plugin, refreshes /etc/media-add.env, restarts the gateway)
 # test from the hermes side:
-ssh -F /opt/hermes-ssh/config media 'series search Severance'
+ssh -F /opt/hermes-ssh/config media 'artist search Bestia Bebé'
 ```
+
+**Known infra gotcha**: this host has no IPv6 route; without `filter-AAAA` in
+`/etc/dnsmasq.d/nextdns.conf` the gateway (Python) tries IPv6 answers first
+and Telegram sends/polls flake intermittently while curl-based monitoring
+stays green (see `linux/dnsmasq/nextdns.conf.example`).
 
 ## Music via Soulseek (slskd + Soularr)
 
@@ -178,6 +227,36 @@ Secrets (Soulseek account, slskd API key, Lidarr API key) live in
 mirrored in envy context `max` (`SLSKD_*`). The music library is shared
 read-only on the network — expected Soulseek etiquette.
 
+## Remote access & sharing (Tailscale, no Plex Pass)
+
+Plex's 2025 paywall only applies to **remote** streams — and "local" is
+decided by IP. Two server prefs make Tailscale devices count as local from
+anywhere in the world (set via `/:/prefs`, persisted in Preferences.xml):
+
+- `LanNetworksBandwidth=192.168.68.0/22,100.64.0.0/10` — the tailnet is "LAN".
+- `customConnections=http://100.102.172.111:32400,http://workstation.tailf178d0.ts.net:32400`
+  — plex.tv advertises the Tailscale addresses to clients, so apps find the
+  server off-network (this was the missing piece; without it only same-WiFi
+  discovery worked).
+
+Client side: install/enable Tailscale on each device (iOS: turn on VPN
+On-Demand). Sharing with family: invite their Plex account (app.plex.tv →
+Users & Sharing), put their devices on the tailnet.
+
+All other service UIs are plain HTTP on the Tailscale IP — they work from
+anywhere by design; URLs + creds are mirrored in envy context `max`.
+
+## Monitoring & notifications
+
+- **Tautulli** notifies Telegram (hermes bot token, envy `TELEGRAM_*`) when
+  content is added to Plex. Its Telegram notifier is agent_id **13**.
+- **Uptime Kuma** (`:3001`) checks every service, api.telegram.org
+  reachability and the local dnsmasq each 60 s, alerting via Telegram.
+  Four **push heartbeats** alert on silence instead: the two cron scripts
+  ping `KUMA_PUSH_*` URLs (in the media `.env`) on success; two crontab lines
+  (`# kuma-heartbeat`) check the hermes gateway process and the soularr
+  container every 5 min. No docker socket is mounted into Kuma.
+
 ## Cron jobs (operator's crontab)
 
 - `media-watchlist-sync` (every 15 min): triggers Sonarr/Radarr ImportListSync
@@ -186,6 +265,7 @@ read-only on the network — expected Soulseek etiquette.
   Tautulli configs, minus Plex logs/cache) to `~/backups/media/` on the
   internal SSD, keeping the last 14. The media library shares the external
   disk with these configs; the library is re-downloadable, the configs aren't.
+- Two `# kuma-heartbeat` lines (hermes gateway, soularr) — see Monitoring.
 
 ## Notes
 
@@ -193,6 +273,13 @@ read-only on the network — expected Soulseek etiquette.
   paths and passwords (incl. the auto-generated *arr API keys) never get
   committed (see `docs/client-boundaries.md`). `media-add` reads the keys from
   there, or from `/etc/media-add.env` (mediabot-readable) on the SSH endpoint.
+- **Envy mirror**: every service URL, API key and credential also lives in
+  envy context `max` (`SONARR_API_KEY`, `PLEX_TOKEN`, `SLSKD_*`,
+  `UPTIMEKUMA_*`, `RUTRACKER_*`, `OPENSUBTITLES_*`, `TELEGRAM_*`, ...) —
+  `evl max` then `evg <KEY>`. If a key rotates, update both the `.env` and envy.
+- **Torrent cleanup**: Transmission seeds to ratio 1.0 or 30 min idle, then
+  Sonarr/Radarr remove the finished torrent (`removeCompletedDownloads`);
+  imports are hardlinks so the library copy survives.
 - **Port check**: none of the media ports (32400, 139, 445, 9091, 51413, 8989,
-  7878, 9696, 6767, 8191) collide with the work stack (4566, 5432/55432/5433, 13000,
-  8093, 9083, 9000/9001/9100/9101).
+  7878, 8686, 5030/50300, 9696, 6767, 8181, 3001, 8191) collide with the work
+  stack (4566, 5432/55432/5433, 13000, 8093, 9083, 9000/9001/9100/9101).
