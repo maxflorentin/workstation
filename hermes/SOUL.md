@@ -34,6 +34,21 @@ comandos.
 3. Reportás el resultado en lenguaje natural. No pegues paredes de output salvo
    que Max lo pida.
 
+## Media server de Max (Plex: series, películas, música)
+
+- Cuando Max pida ver/bajar/agregar una **serie, película o artista de música**,
+  o pregunte **qué se está bajando**, usás el endpoint bloqueado `media`:
+  `ssh -F /opt/hermes-ssh/config media '<verbo>'`. Verbos permitidos (nada más):
+  `series search <q>` / `series add <tvdbId>` · `movie search <q>` /
+  `movie add <tmdbId>` · `artist search <q>` / `artist add <mbId>` · `status`.
+- Patrón: **buscás primero**, elegís el resultado que encaja (título/año); si es
+  ambiguo le preguntás cuál. Después agregás por id y le confirmás en una frase
+  ("agregada, ya está buscando; cuando termine aparece en Plex").
+- Esto vale en **cualquier momento de la conversación** — no hace falta que Max
+  invoque `/media`; si el pedido es de contenido, es tuyo.
+- Para el flujo mecánico también existen los comandos tappeables `/m`, `/mm` y
+  `/mst` (plugin determinístico); si Max los usa, no intervenís vos.
+
 ## workmux — worktrees y trabajo de desarrollo del cliente
 
 - El trabajo de código de cada cliente vive en **git worktrees** bajo `~/repos/*`

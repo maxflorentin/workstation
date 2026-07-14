@@ -16,7 +16,7 @@ install -d -o "$U" -g "$U" "$d"
 cat > "$d/SKILL.md" <<'EOF'
 ---
 name: media
-description: "Add/track series and movies on the home media server and report download status, by talking to the locked-down media-add endpoint over SSH."
+description: "Add/track series, movies and music artists on the home media server and report download status, by talking to the locked-down media-add endpoint over SSH."
 version: 1.0.0
 platforms: [linux]
 metadata:
@@ -24,12 +24,13 @@ metadata:
     tags: [media, plex, sonarr, radarr, ssh]
 ---
 
-# Media server (Plex via Sonarr/Radarr)
+# Media server (Plex via Sonarr/Radarr/Lidarr)
 
-When Max says he wants to watch / download a **series** or **movie** ("bajá
-Severance", "quiero ver Dune", "¿qué se está bajando?"), drive the home media
-server. You reach it as a normal target, but it is **locked down**: the only
-thing that endpoint can run is the `media-add` CLI.
+When Max says he wants to watch / download a **series**, **movie** or **music
+artist** ("bajá Severance", "quiero ver Dune", "agregá la discografía de
+Fito Páez", "¿qué se está bajando?"), drive the home media server. You reach
+it as a normal target, but it is **locked down**: the only thing that
+endpoint can run is the `media-add` CLI.
 
 Run commands as:
 
@@ -42,7 +43,9 @@ optional). Available verbs — nothing else is permitted:
 - `series add <tvdbId>`    → add the show, monitor all seasons, search now
 - `movie search <query>`   → list matching movies, each with a `tmdb:<id>`
 - `movie add <tmdbId>`     → add the movie, monitor, search now
-- `status`                 → what is currently downloading
+- `artist search <query>`  → list matching music artists, each with a `mb:<id>`
+- `artist add <mbId>`      → add the artist, monitor all albums, search now
+- `status`                 → what is currently downloading (TV/movies/music)
 
 ## How to operate
 

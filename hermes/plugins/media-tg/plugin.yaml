@@ -1,0 +1,8 @@
+manifest_version: 1
+name: media-tg
+version: 0.1.0
+description: "Deterministic Telegram wrapper over media-add: search series/movies/artists and add them via tappable commands, without going through the model."
+author: max
+kind: standalone
+provides_hooks:
+  - pre_gateway_dispatch

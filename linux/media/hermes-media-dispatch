@@ -11,7 +11,7 @@ set -f
 set -- $SSH_ORIGINAL_COMMAND
 [ "${1:-}" = "media-add" ] && shift
 case "${1:-}" in
-    series|movie|status|help|"") : ;;
-    *) echo "media: only 'series', 'movie', 'status', 'help' are allowed" >&2; exit 2 ;;
+    series|movie|artist|status|help|"") : ;;
+    *) echo "media: only 'series', 'movie', 'artist', 'status', 'help' are allowed" >&2; exit 2 ;;
 esac
 exec env MEDIA_ENV=/etc/media-add.env /usr/local/bin/media-add "$@"

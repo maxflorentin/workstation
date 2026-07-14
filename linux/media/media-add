@@ -9,13 +9,15 @@ Usage:
   media-add series add <tvdbId>          Add series, monitor all, search now
   media-add movie  search "<query>"      List matching movies (with tmdbId)
   media-add movie  add <tmdbId>          Add movie, monitor, search now
+  media-add artist search "<query>"      List matching artists (with mbId)
+  media-add artist add <mbId>            Add artist, monitor all, search now
   media-add status                       What's downloading / wanted
   media-add help
 
 Output is plain text (one item per line) so the agent can read and relay it.
 
-API keys are read from the environment (SONARR_API_KEY, RADARR_API_KEY) or,
-if unset, from the media .env (path in MEDIA_ENV, default below).
+API keys are read from the environment (SONARR_API_KEY, RADARR_API_KEY,
+LIDARR_API_KEY) or, if unset, from the media .env (path in MEDIA_ENV).
 """
 import argparse
 import json
@@ -28,12 +30,21 @@ import urllib.request
 DEFAULT_ENV = "/home/max/.dotfiles/linux/media/.env"
 
 SERVICES = {
-    "series": {"port": 8989, "key_var": "SONARR_API_KEY",
-               "root": "/data/library/tv", "id_field": "tvdbId", "id_name": "tvdb"},
-    "movie":  {"port": 7878, "key_var": "RADARR_API_KEY",
-               "root": "/data/library/movies", "id_field": "tmdbId", "id_name": "tmdb"},
+    "series": {"port": 8989, "key_var": "SONARR_API_KEY", "api": "v3",
+               "root": "/data/library/tv", "id_field": "tvdbId", "id_name": "tvdb",
+               "title_field": "title"},
+    "movie":  {"port": 7878, "key_var": "RADARR_API_KEY", "api": "v3",
+               "root": "/data/library/movies", "id_field": "tmdbId", "id_name": "tmdb",
+               "title_field": "title"},
+    "artist": {"port": 8686, "key_var": "LIDARR_API_KEY", "api": "v1",
+               "root": "/data/library/music", "id_field": "foreignArtistId", "id_name": "mb",
+               "title_field": "artistName"},
 }
-QUALITY_PREF = ["HD-1080p", "HD - 1080p", "HD-720p/1080p", "Any", "SD"]
+QUALITY_PREF = {
+    "series": ["HD-1080p", "HD - 1080p", "HD-720p/1080p", "Any", "SD"],
+    "movie":  ["HD-1080p", "HD - 1080p", "HD-720p/1080p", "Any", "SD"],
+    "artist": ["Lossless", "Any", "Standard"],
+}
 
 
 def load_keys():
@@ -48,7 +59,8 @@ def load_keys():
                 continue
             k, v = line.split("=", 1)
             k = k.strip()
-            if k in ("SONARR_API_KEY", "RADARR_API_KEY") and k not in os.environ:
+            if k in ("SONARR_API_KEY", "RADARR_API_KEY", "LIDARR_API_KEY") \
+                    and k not in os.environ:
                 os.environ[k] = v.strip().strip('"').strip("'")
 
 
@@ -57,7 +69,7 @@ def api(kind, path, method="GET", body=None, params=None):
     key = os.environ.get(cfg["key_var"])
     if not key:
         die(f"missing {cfg['key_var']} (set it in {DEFAULT_ENV})")
-    url = f"http://127.0.0.1:{cfg['port']}/api/v3/{path}"
+    url = f"http://127.0.0.1:{cfg['port']}/api/{cfg['api']}/{path}"
     if params:
         url += "?" + urllib.parse.urlencode(params)
     data = json.dumps(body).encode() if body is not None else None
@@ -82,14 +94,15 @@ def die(msg):
 def quality_profile_id(kind):
     profiles = api(kind, "qualityprofile")
     by_name = {p["name"]: p["id"] for p in profiles}
-    for name in QUALITY_PREF:
+    for name in QUALITY_PREF[kind]:
         if name in by_name:
             return by_name[name]
     return profiles[0]["id"]
 
 
 def lookup(kind, query):
-    path = "series/lookup" if kind == "series" else "movie/lookup"
+    path = {"series": "series/lookup", "movie": "movie/lookup",
+            "artist": "artist/lookup"}[kind]
     return api(kind, path, params={"term": query})
 
 
@@ -98,28 +111,35 @@ def cmd_search(kind, query):
     if not results:
         print(f"No {kind} results for '{query}'.")
         return
-    idf = SERVICES[kind]["id_field"]
-    idn = SERVICES[kind]["id_name"]
+    cfg = SERVICES[kind]
+    idf, idn, tf = cfg["id_field"], cfg["id_name"], cfg["title_field"]
     for r in results[:10]:
-        year = r.get("year") or "?"
         rid = r.get(idf) or "?"
         already = " [already added]" if r.get("id") else ""
-        print(f"  {r.get('title')} ({year}) — {idn}:{rid}{already}")
+        if kind == "artist":
+            extra = r.get("disambiguation") or ""
+            extra = f" ({extra})" if extra else ""
+            print(f"  {r.get(tf)}{extra} — {idn}:{rid}{already}")
+        else:
+            year = r.get("year") or "?"
+            print(f"  {r.get(tf)} ({year}) — {idn}:{rid}{already}")
     print(f"\nAdd with: media-add {kind} add <{idn}id>")
 
 
 def cmd_add(kind, ext_id):
     cfg = SERVICES[kind]
-    idf = cfg["id_field"]
+    idf, tf = cfg["id_field"], cfg["title_field"]
     # Find the full object from a lookup keyed by the external id.
-    matches = lookup(kind, f"{cfg['id_name']}:{ext_id}")
+    # Lidarr resolves MusicBrainz ids with the "lidarr:" prefix.
+    term = f"lidarr:{ext_id}" if kind == "artist" else f"{cfg['id_name']}:{ext_id}"
+    matches = lookup(kind, term)
     obj = next((m for m in matches if str(m.get(idf)) == str(ext_id)), None)
     if obj is None and matches:
         obj = matches[0]
     if obj is None:
         die(f"no {kind} found for {cfg['id_name']}:{ext_id}")
     if obj.get("id"):
-        print(f"Already in library: {obj.get('title')} ({obj.get('year')})")
+        print(f"Already in library: {obj.get(tf)}")
         return
 
     obj["qualityProfileId"] = quality_profile_id(kind)
@@ -129,17 +149,23 @@ def cmd_add(kind, ext_id):
         obj["seasonFolder"] = True
         obj["addOptions"] = {"monitor": "all", "searchForMissingEpisodes": True}
         created = api("series", "series", "POST", obj)
-    else:
+    elif kind == "movie":
         obj["addOptions"] = {"monitor": "movieOnly", "searchForMovie": True}
         created = api("movie", "movie", "POST", obj)
-    print(f"Added: {created.get('title')} ({created.get('year')}) — searching now.")
+    else:
+        profiles = api("artist", "metadataprofile")
+        obj["metadataProfileId"] = profiles[0]["id"]
+        obj["addOptions"] = {"monitor": "all", "searchForMissingAlbums": True}
+        created = api("artist", "artist", "POST", obj)
+    year = f" ({created.get('year')})" if created.get("year") else ""
+    print(f"Added: {created.get(tf)}{year} — searching now.")
 
 
 def cmd_status():
-    for kind in ("series", "movie"):
+    for kind in ("series", "movie", "artist"):
         q = api(kind, "queue", params={"pageSize": 50})
         records = q.get("records", []) if isinstance(q, dict) else []
-        label = "TV" if kind == "series" else "Movies"
+        label = {"series": "TV", "movie": "Movies", "artist": "Music"}[kind]
         if not records:
             print(f"{label}: nothing downloading.")
             continue
@@ -159,7 +185,7 @@ def main():
     load_keys()
     p = argparse.ArgumentParser(prog="media-add", add_help=False)
     sub = p.add_subparsers(dest="cmd")
-    for kind in ("series", "movie"):
+    for kind in ("series", "movie", "artist"):
         sp = sub.add_parser(kind, add_help=False)
         ksub = sp.add_subparsers(dest="action")
         s = ksub.add_parser("search", add_help=False)
