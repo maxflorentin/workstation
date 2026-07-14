@@ -55,3 +55,7 @@ docker run --rm \
 ls -1t "$DEST"/media-config-*.tar.gz 2>/dev/null | tail -n +$((KEEP + 1)) | xargs -r rm --
 
 echo "media-backup: $DEST/$OUT ($(du -h "$DEST/$OUT" | cut -f1))"
+
+# heartbeat to Uptime Kuma, if configured (KUMA_PUSH_BACKUP in .env)
+PUSH="$(awk -F= '$0 ~ "^KUMA_PUSH_BACKUP=" {sub("^KUMA_PUSH_BACKUP=",""); print; exit}' "$ENV_FILE")"
+[ -n "$PUSH" ] && curl -fsS -m 10 "$PUSH" >/dev/null 2>&1 || true

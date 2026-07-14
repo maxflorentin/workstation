@@ -35,3 +35,7 @@ sync_one() { # name port api_key
 
 sync_one sonarr 8989 "$(env_get SONARR_API_KEY)"
 sync_one radarr 7878 "$(env_get RADARR_API_KEY)"
+
+# heartbeat to Uptime Kuma, if configured (KUMA_PUSH_WATCHLIST in .env)
+PUSH="$(env_get KUMA_PUSH_WATCHLIST)"
+[ -n "$PUSH" ] && curl -fsS -m 10 "$PUSH" >/dev/null 2>&1 || true
