@@ -19,6 +19,7 @@ Services (managed by the `media` CLI, `linux/media/`):
 | Soularr        | `mrusse08/soularr`                 | —                  | Lidarr wanted -> slskd bridge    |
 | Bazarr         | `lscr.io/linuxserver/bazarr`       | 6767               | Subtitles: fetch + auto-sync     |
 | Tautulli       | `lscr.io/linuxserver/tautulli`     | 8181               | Plex stats + new-content notifs  |
+| Uptime Kuma    | `louislam/uptime-kuma`             | 3001               | Status dashboard + TG alerts     |
 
 You request content conversationally through the **hermes** agent on Telegram,
 which calls the `media-add` CLI over a locked-down SSH endpoint (see
@@ -122,6 +123,7 @@ Endpoints (on the LAN / over Tailscale):
 - Prowlarr: `http://<workstation>:9696`
 - Bazarr: `http://<workstation>:6767`
 - Tautulli: `http://<workstation>:8181`
+- Uptime Kuma: `http://<workstation>:3001` (creds in envy `max`: `UPTIMEKUMA_*`)
 - Samba: `smb://<workstation>` — shares `media`, `downloads`
 
 ## Indexers (your sources)

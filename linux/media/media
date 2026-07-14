@@ -97,6 +97,7 @@ cmd_setup() {
         "$config/plex" "$config/transmission" \
         "$config/sonarr" "$config/radarr" "$config/prowlarr" "$config/bazarr" \
         "$config/tautulli" "$config/lidarr" "$config/slskd" "$config/soularr" \
+        "$config/uptime-kuma" \
         "$storage/slskd/downloads" "$storage/slskd/incomplete" \
         "$transcode"
     sudo chown -R "$puid:$pgid" "$storage"
@@ -130,7 +131,7 @@ cmd_status() {
         --format 'table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}' \
         media-plex media-samba media-transmission \
         media-sonarr media-radarr media-lidarr media-prowlarr media-bazarr \
-        media-tautulli media-slskd media-soularr 2>/dev/null || true
+        media-tautulli media-slskd media-soularr media-uptime-kuma 2>/dev/null || true
     echo ""
     local host
     host="$(hostname -s 2>/dev/null || hostname)"
@@ -144,6 +145,7 @@ cmd_status() {
     echo "  Prowlarr:     http://$host:9696"
     echo "  Bazarr:       http://$host:6767"
     echo "  Tautulli:     http://$host:8181"
+    echo "  Uptime Kuma:  http://$host:3001"
     echo "  Samba:        smb://$host  (shares: media, downloads)"
 }
 

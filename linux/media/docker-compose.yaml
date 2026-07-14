@@ -312,6 +312,27 @@ services:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
 
+  # Status dashboard: pings every service (plus api.telegram.org and the
+  # local DNS, which have both flaked) and alerts via Telegram. Answers
+  # "is it the network, the service, or Telegram?" at a glance.
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: media-uptime-kuma
+    dns: ["1.1.1.1", "8.8.8.8"]   # host resolver (Tailscale) can't resolve public names
+    volumes:
+      - ${CONFIG}/uptime-kuma:/app/data
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 384M
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
   # Solves Cloudflare/DDoS-Guard challenges so Prowlarr can reach protected
   # indexers. Runs a headless Chromium, so it's the heaviest service when
   # active — capped accordingly. Prowlarr reaches it at http://flaresolverr:8191
