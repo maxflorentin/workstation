@@ -23,8 +23,19 @@
 #       /etc/dnsmasq.d/nextdns.conf
 #   sudo systemctl restart dnsmasq && systemctl is-active dnsmasq
 
+# Second half of the no-IPv6 decision (2026-07-14): even with IPv4-only
+# upstreams, dnsmasq still relayed AAAA *answers*. Python clients (the Hermes
+# gateway) try those unreachable IPv6 addresses first and can burn their
+# retries before falling back to IPv4 — curl-style happy-eyeballs clients fall
+# back instantly, which is why monitoring looked green while the gateway
+# flaked. `filter-AAAA` stops handing out IPv6 answers entirely. Remove it
+# only if this host gains a working IPv6 route.
+#   sudo sh -c 'grep -q "^filter-AAAA" /etc/dnsmasq.d/nextdns.conf || echo filter-AAAA >> /etc/dnsmasq.d/nextdns.conf'
+#   sudo systemctl restart dnsmasq && systemctl is-active dnsmasq
+
 no-resolv
 bogus-priv
+filter-AAAA
 server=45.90.28.0
 server=45.90.30.0
 add-cpe-id=<nextdns-cpe-id>
