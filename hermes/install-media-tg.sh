@@ -35,6 +35,24 @@ install -m 0644 -o "$HU" -g "$HU" "$HERE/plugins/media-tg/plugin.yaml" "$pdir/pl
 install -m 0644 -o "$HU" -g "$HU" "$HERE/plugins/media-tg/__init__.py" "$pdir/__init__.py"
 echo "    installed $pdir"
 
+echo "==> 3b. Enable media-tg in the gateway config (plugins.enabled)"
+runuser -u "$HU" -- bash -lc '
+PY="$HOME/.hermes/hermes-agent/venv/bin/python"; [ -x "$PY" ] || PY=python3
+"$PY" - "$(hermes config path)" <<PYEOF
+import sys, yaml
+p = sys.argv[1]
+with open(p) as f:
+    cfg = yaml.safe_load(f) or {}
+en = cfg.setdefault("plugins", {}).setdefault("enabled", [])
+if "media-tg" in en:
+    print("    already enabled")
+else:
+    en.append("media-tg")
+    with open(p, "w") as f:
+        yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
+    print("    enabled media-tg")
+PYEOF'
+
 echo "==> 4. SOUL.md"
 soul="$HU_HOME/.hermes/SOUL.md"
 if [ -L "$soul" ]; then
