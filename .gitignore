@@ -8,3 +8,4 @@ editors/nvim/lazy-lock.json
 *.clientrc
 clients/
 private-config-backup/
+__pycache__/
