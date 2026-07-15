@@ -1,3 +1,9 @@
+# Auto-start tmux on SSH sessions
+if [[ -n "$SSH_CONNECTION" && -z "$TMUX" ]] && command -v tmux >/dev/null 2>&1; then
+    tmux attach 2>/dev/null || tmux new-session
+    exit
+fi
+
 # Dotfiles
 export DOTFILES=$HOME/.dotfiles
 
