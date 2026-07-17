@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# wm — wrapper no interactivo sobre workmux para el agente Hermes.
+# Se instala en ~/bin/wm del usuario cliente y se invoca por ssh como
+# `bin/wm <sub> ...` (el PATH no-interactivo no incluye ~/bin).
+#
+# Superficie deliberadamente limitada (espejo del endpoint `media`):
+# solo enumeración, lectura de panes y send al agente. Lo destructivo
+# (add/merge/remove) queda fuera — el agente debe usar workmux directo,
+# que al ser un comando compuesto siempre pide aprobación en Telegram.
+set -euo pipefail
+
+source ~/.clientrc 2>/dev/null || true
+WORKMUX="$(command -v workmux || echo /home/linuxbrew/.linuxbrew/bin/workmux)"
+REPOS=~/repos
+
+usage() {
+  echo "uso: wm repos" >&2
+  echo "     wm <list|status> <repo> [args...]" >&2
+  echo "     wm <capture|send|wait|path> <repo> <handle> [args...]" >&2
+  exit 2
+}
+
+repo_dir() {
+  case "$1" in
+    (*[!A-Za-z0-9._-]*|'') echo "repo inválido: $1" >&2; exit 2 ;;
+  esac
+  [ -d "$REPOS/$1/.git" ] || { echo "no existe el repo: $1" >&2; exit 2; }
+  echo "$REPOS/$1"
+}
+
+cmd="${1:-}"; [ $# -ge 1 ] && shift
+case "$cmd" in
+  repos)
+    # Repos con worktrees activos primero, después el inventario completo.
+    echo "## con worktrees activos:"
+    for d in "$REPOS"/*__worktrees; do
+      [ -d "$d" ] && basename "${d%__worktrees}"
+    done
+    echo "## todos:"
+    for d in "$REPOS"/*/.git; do
+      basename "$(dirname "$d")"
+    done
+    ;;
+  list|status)
+    [ $# -ge 1 ] || usage
+    repo="$1"; shift
+    cd "$(repo_dir "$repo")" && exec "$WORKMUX" "$cmd" "$@"
+    ;;
+  capture|send|wait|path)
+    [ $# -ge 2 ] || usage
+    repo="$1"; shift
+    cd "$(repo_dir "$repo")" && exec "$WORKMUX" "$cmd" "$@"
+    ;;
+  *) usage ;;
+esac

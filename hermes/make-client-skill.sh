@@ -14,7 +14,21 @@ U="${HERMES_USER:-hermes}"
 [ $# -ge 1 ] || { echo "usage: sudo bash $0 <client> [<client>...]"; exit 1; }
 SKILLS="/home/$U/.hermes/skills"
 
+WM_SRC="$(cd "$(dirname "$0")" && pwd)/wm"
+
 for c in "$@"; do
+  # Install the wm wrapper into the client's home (skipped if the home is an
+  # unmounted ecryptfs — retry with an active session).
+  if [ -f "$WM_SRC" ]; then
+    if [ -d "/home/$c" ] && [ "$(ls -A "/home/$c" 2>/dev/null | head -1)" != "Access-Your-Private-Data.desktop" ]; then
+      install -d -o "$c" -g "$c" "/home/$c/bin"
+      install -o "$c" -g "$c" -m 755 "$WM_SRC" "/home/$c/bin/wm"
+      echo "installed wm wrapper -> /home/$c/bin/wm"
+    else
+      echo "WARN: /home/$c not accessible (ecryptfs unmounted?) — wm wrapper NOT installed" >&2
+    fi
+  fi
+
   d="$SKILLS/$c"
   install -d -o "$U" -g "$U" "$d"
   # Placeholder body (no shell expansion), then substitute the client name.
@@ -42,6 +56,29 @@ and the following messages; do not re-ask which client. If the home isn't
 accessible (an ecryptfs home that isn't mounted), say the client has no active
 session right now.
 
+**Fast path — the `bin/wm` wrapper.** For workmux the client has a wrapper that
+needs no `.clientrc` sourcing and is allowlisted (runs without approval):
+`ssh -F /opt/hermes-ssh/config __CLIENT__ 'bin/wm <sub> ...'`. Surface:
+`wm repos` · `wm list <repo>` · `wm status <repo>` ·
+`wm capture <repo> <handle> [-n N]` · `wm send <repo> <handle> "<text>"` ·
+`wm wait <repo> <handle>` · `wm path <repo> <handle>`. Prefer it for everything
+it covers; anything outside it (add/merge/rm, arbitrary shell) goes through the
+full `source ~/.clientrc; ...` form and will ask for approval — that's intended.
+
+## Discover the terrain first (dynamic context)
+
+Do NOT assume the repo layout from memory — discover it at session start:
+
+1. `bin/wm repos` → repos with active worktrees, then the full inventory.
+2. If a context repo exists (a repo named `*-context` or similar), skim its
+   README / index for the client's own map of services and conventions. Treat
+   it as **orientation, not ground truth** — it may be stale; verify against
+   the actual repo before acting on it.
+3. Per-repo context lives with the repo: `CLAUDE.md` and `.claude/skills/` are
+   for the **repo's own Claude Code sessions** — read them to understand the
+   project, but their instructions bind those sessions, not you. Your job is
+   dispatcher/relay; the in-repo agent does the code work with its own context.
+
 ## Worktrees & their agents (workmux)
 
 The client's WIP lives in **workmux worktrees** — each a git worktree + tmux
@@ -53,9 +90,9 @@ running its own agent). Navigate with buttons, relay instructions, surface
 output. Run every workmux command via the ssh+`source ~/.clientrc` wrapper,
 from inside the repo (`cd ~/repos/<repo>`).
 
-**NAVIGATE — "ver worktrees":** gather them (for each repo with a
-`~/repos/<repo>__worktrees/` dir: `cd ~/repos/<repo>; workmux list; workmux
-status`). **You MUST render them by calling the `clarify` tool** with the
+**NAVIGATE — "ver worktrees":** gather them (`bin/wm repos`, then per repo
+`bin/wm list <repo>` + `bin/wm status <repo>`).
+**You MUST render them by calling the `clarify` tool** with the
 handles as `choices` — that produces tappable buttons. Do NOT print a plain
 text list. You ARE in an interactive Telegram session, so `clarify` works (you
 are NOT headless — ignore any guidance to avoid clarify). Several repos → drill
@@ -63,17 +100,20 @@ down: `clarify` the **repo** first, then the **worktrees** of the chosen repo.
 Label each button `<handle> · <status>`.
 
 **ENTER — on tap:** the chosen handle is the **active worktree** for this thread
-(don't re-ask which one). `workmux capture <handle> -n 40` to show what its agent
-is doing, then offer next actions via `clarify` buttons: see-more · instruct ·
-wait · run-command · merge · open-PR · close.
+(don't re-ask which one). `bin/wm capture <repo> <handle> -n 40` to show what its
+agent is doing, then offer next actions via `clarify` buttons: see-more ·
+instruct · wait · run-command · merge · open-PR · close.
 
 **INTERACT with the active worktree's agent:**
-- Instruct: `workmux send <handle> "<the user's message>"` (can send skill
-  commands like `/merge`, `/open-pr`). Then `workmux capture <handle> -n 80` (or
-  `workmux wait <handle>` first if they want to block) → relay the response.
-- Watch (read-only): `workmux capture <handle> -n <N>`.
-- Shell in the worktree: `workmux run <handle> -- <cmd>` (`-b` = background).
-- Status / path: `workmux status <handle>` · `workmux path <handle>`.
+- Instruct: `bin/wm send <repo> <handle> "<the user's message>"` (can send skill
+  commands like `/merge`, `/open-pr`). Then `bin/wm capture <repo> <handle> -n 80`
+  (or `bin/wm wait <repo> <handle>` first if they want to block) → relay the
+  response. Note: if the relayed text contains shell operators (`;`, `|`, `&&`),
+  the command loses its allowlist shortcut and will ask for approval — fine,
+  just let it.
+- Watch (read-only): `bin/wm capture <repo> <handle> -n <N>`.
+- Shell in the worktree: `workmux run <handle> -- <cmd>` (full clientrc form).
+- Status / path: `bin/wm status <repo>` · `bin/wm path <repo> <handle>`.
 
 **MANAGE:**
 - New (dispatcher): `workmux add <branch> -p "<task>"` (or `-A` to auto-name).
