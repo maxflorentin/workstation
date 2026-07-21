@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# tmux-mobile-mode — status bar + pane-zoom adjustments for narrow clients.
+#
+# Invoked by the `client-attached` hook in tmux.conf with the attaching
+# client's width (auto-detect), or manually via `Prefix + m` (toggle). On a
+# phone-width terminal (WebSSH et al.) the status bar and a split pane eat
+# the little horizontal room there is; this reclaims both automatically and
+# self-heals on every reattach (useful since phone SSH clients drop the
+# connection on network handoff and reconnect fresh each time).
+set -euo pipefail
+
+WIDTH_THRESHOLD=90
+
+apply_mobile() {
+  tmux set-option -g status off
+  if [ "$(tmux display-message -p '#{window_zoomed_flag}')" = "0" ]; then
+    tmux resize-pane -Z
+  fi
+}
+
+apply_desktop() {
+  tmux set-option -g status on
+}
+
+case "${1:-}" in
+  on) apply_mobile ;;
+  off) apply_desktop ;;
+  toggle)
+    if [ "$(tmux show-option -gv status)" = "off" ]; then
+      apply_desktop
+    else
+      apply_mobile
+    fi
+    ;;
+  ''|*[!0-9]*)
+    echo "uso: tmux-mobile-mode <on|off|toggle|<client_width>>" >&2
+    exit 2
+    ;;
+  *)
+    # Called from the client-attached hook with a numeric client width.
+    if [ "$1" -lt "$WIDTH_THRESHOLD" ]; then
+      apply_mobile
+    else
+      apply_desktop
+    fi
+    ;;
+esac
