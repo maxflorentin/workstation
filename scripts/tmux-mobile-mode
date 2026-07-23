@@ -1,25 +1,55 @@
 #!/usr/bin/env bash
-# tmux-mobile-mode — status bar + pane-zoom adjustments for narrow clients.
+# tmux-mobile-mode — status bar, pane-zoom, and workmux-sidebar adjustments
+# for narrow clients.
 #
 # Invoked by the `client-attached` hook in tmux.conf with the attaching
 # client's width (auto-detect), or manually via `Prefix + m` (toggle). On a
-# phone-width terminal (WebSSH et al.) the status bar and a split pane eat
-# the little horizontal room there is; this reclaims both automatically and
-# self-heals on every reattach (useful since phone SSH clients drop the
-# connection on network handoff and reconnect fresh each time).
+# phone-width terminal (WebSSH et al.) the status bar, a split pane, and the
+# 40-col workmux sidebar all eat the little horizontal room there is; this
+# reclaims them automatically and self-heals on every reattach (useful since
+# phone SSH clients drop the connection on network handoff and reconnect
+# fresh each time).
 set -euo pipefail
 
 WIDTH_THRESHOLD=90
+
+# Opt this tmux session in/out of the global workmux sidebar (40 cols fixed,
+# see workstation/workmux.yaml) without touching other sessions. No-op if the
+# sidebar isn't globally enabled — `--session` would otherwise enable it just
+# for this one session instead of opting it out (see workmux docs).
+sidebar_set() {
+  local want_hidden="$1" sid optout is_hidden=false active_panes p
+  [ "$(tmux show-option -gqv @workmux_sidebar_enabled)" = "1" ] || return 0
+  command -v workmux >/dev/null 2>&1 || return 0
+  sid="$(tmux display-message -p '#{session_id}')"
+  optout="$(tmux show-option -gqv @workmux_sidebar_optout_sessions)"
+  if printf '%s' "$optout" | tr ',' ' ' | grep -qw "$sid"; then
+    is_hidden=true
+  fi
+  [ "$is_hidden" = "$want_hidden" ] && return 0
+
+  # Recreating the sidebar pane leaves IT focused in every window of this
+  # session, stealing the active pane from the real content pane — which
+  # then gets misnamed by automatic-rename ("workmux" instead of "zsh" /
+  # "claude"). Snapshot each window's active pane first and restore it after.
+  active_panes="$(tmux list-panes -s -t "$sid" -F '#{pane_active} #{pane_id}' | awk '$1==1{print $2}')"
+  workmux sidebar --session >/dev/null 2>&1
+  for p in $active_panes; do
+    tmux select-pane -t "$p" 2>/dev/null || true
+  done
+}
 
 apply_mobile() {
   tmux set-option -g status off
   if [ "$(tmux display-message -p '#{window_zoomed_flag}')" = "0" ]; then
     tmux resize-pane -Z
   fi
+  sidebar_set true   # too narrow to spare the 40-col sidebar — hide it here
 }
 
 apply_desktop() {
   tmux set-option -g status on
+  sidebar_set false  # plenty of room — make sure it's showing
 }
 
 case "${1:-}" in

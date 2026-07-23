@@ -6,6 +6,11 @@
 
 nerdfont: true
 
+# Fixed width avoids the dynamic reflow-on-resize sidebar bug present in
+# workmux <= 0.1.209 (width drifted between 10/38/67 cols across windows).
+sidebar:
+  width: 40
+
 panes:
   - command: workmux dashboard
   - split: horizontal
