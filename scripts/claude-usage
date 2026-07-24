@@ -32,6 +32,7 @@ from urllib.request import Request, urlopen
 
 
 KEYCHAIN_SERVICE = "Claude Code-credentials"
+CREDENTIALS_FILE = Path.home() / ".claude" / ".credentials.json"
 MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 CACHE_PATH = Path(f"/tmp/.claude-usage-cache.{os.getuid()}.json")
 CACHE_TTL_SECONDS = 60
@@ -51,6 +52,22 @@ def read_token_from_keychain() -> str:
     if not token:
         raise RuntimeError("claudeAiOauth.accessToken missing in keychain payload")
     return token
+
+
+def read_token_from_credentials_file() -> str:
+    payload = json.loads(CREDENTIALS_FILE.read_text())
+    token = (payload.get("claudeAiOauth") or {}).get("accessToken")
+    if not token:
+        raise RuntimeError(f"claudeAiOauth.accessToken missing in {CREDENTIALS_FILE}")
+    return token
+
+
+def read_token() -> str:
+    # macOS stores the OAuth token in the Keychain; Linux keeps it in
+    # ~/.claude/.credentials.json. Try whichever applies to this host.
+    if CREDENTIALS_FILE.exists():
+        return read_token_from_credentials_file()
+    return read_token_from_keychain()
 
 
 def fetch_headers(token: str) -> dict[str, str]:
@@ -142,7 +159,7 @@ def main() -> None:
         reset_in = max(0, cached["reset_at"] - int(time.time()))
     else:
         try:
-            token = read_token_from_keychain()
+            token = read_token()
             headers = fetch_headers(token)
             percent, reset_in = parse_usage(headers)
             save_cache(percent, int(time.time()) + reset_in)
