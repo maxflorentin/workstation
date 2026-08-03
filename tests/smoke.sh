@@ -290,6 +290,9 @@ else
 fi
 rm -rf "$tmp_data" "$tmp_bin"
 
+# --- nvim aerial outline plugin ---
+check_output_contains "aerial plugin spec" "$(cat "$ROOT/editors/nvim/lua/plugins/aerial.lua" 2>/dev/null)" 'stevearc/aerial.nvim'
+
 # --- clau: resume-or-start Claude wrapper ---
 check_bash "$ROOT/scripts/clau"
 check_output_contains "clau resume-or-start" "$(cat "$ROOT/scripts/clau" 2>/dev/null)" 'claude -c'
