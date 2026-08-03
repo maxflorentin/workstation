@@ -296,6 +296,12 @@ cockpit_row="$(WM_COCKPIT_SELFTEST=1 "$ROOT/scripts/wm-cockpit" __rowtest data-p
 check_output_contains "cockpit row key"    "$cockpit_row" 'data-platform:wm-foo'
 check_output_contains "cockpit row merged" "$cockpit_row" 'MERGED'
 check_output_contains "cockpit row pr"     "$cockpit_row" 'PR#145'
+# close: mechanical log line format (ISO date \t repo \t branch \t PR#n \t title)
+cockpit_log="$(WM_COCKPIT_SELFTEST=1 "$ROOT/scripts/wm-cockpit" __logline data-platform feat/x 145 'BUILD lever' 2>/dev/null)"
+check_output_contains "cockpit log repo" "$cockpit_log" 'data-platform'
+check_output_contains "cockpit log pr"   "$cockpit_log" "$(printf 'feat/x\tPR#145')"
+# merge-into action handler present
+check_output_contains "cockpit mergeinto handler" "$(cat "$ROOT/scripts/wm-cockpit")" '__mergeinto'
 
 # --- nvim aerial outline plugin ---
 check_output_contains "aerial plugin spec" "$(cat "$ROOT/editors/nvim/lua/plugins/aerial.lua" 2>/dev/null)" 'stevearc/aerial.nvim'

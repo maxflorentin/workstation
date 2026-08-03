@@ -29,6 +29,18 @@ if [ "${WM_COCKPIT_SELFTEST:-}" = "1" ] && [ "${1:-}" = "__rowtest" ]; then
   shift; _cockpit_row "$1" "$2" "$3" "$4" "$5" "$6"; exit 0
 fi
 
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/wm-cockpit"
+LOG="$STATE_DIR/closed.log"
+
+# repo branch prnum title -> "ISO8601<TAB>repo<TAB>branch<TAB>PR#<n><TAB>title"
+_logline() {
+  printf '%s\t%s\t%s\tPR#%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" "$3" "$4"
+}
+
+if [ "${WM_COCKPIT_SELFTEST:-}" = "1" ] && [ "${1:-}" = "__logline" ]; then
+  shift; _logline "$1" "$2" "$3" "$4"; exit 0
+fi
+
 # Emit "handle<TAB>branch<TAB>state<TAB>ci<TAB>prnum" for each worktree of a repo.
 # Degrades to state=no-pr/unknown when gh is unavailable; never fails the screen.
 _repo_rows() { # repo_dir
@@ -69,11 +81,57 @@ gather() {
   done
 }
 
-# Sub-command used by fzf reload.
-[ "${1:-}" = "__gather" ] && { gather; exit 0; }
+# --- actions (invoked as sub-commands from the fzf bindings) ---
 
+_branch_of() { # repo_dir handle -> branch
+  ( cd "$1" && workmux list --json 2>/dev/null ) | H="$2" python3 -c \
+    'import json,os,sys; d=json.load(sys.stdin); print(next((w.get("branch","") for w in d if w.get("handle")==os.environ["H"]), ""))'
+}
+
+# Detached, best-effort: update this repo's Claude memory to mark the merged
+# initiative shipped. Runs in the repo dir so it uses that project's memory.
+# nohup so it survives the cockpit exiting; failure never blocks the close.
+fire_memory_update() { # repo_dir branch prnum title
+  ( cd "$1" && nohup claude -p "Worktree $2 (PR #$3: $4) merged and shipped. Update this project's memory (MEMORY.md and the relevant project_*.md) to mark the initiative done. Memory only — do not touch code or anything else." >/dev/null 2>&1 & )
+}
+
+do_close() { # repo handle  — refuses unless the PR is MERGED
+  local repo="$1" handle="$2" dir="$REPOS/$1" branch info state num title
+  branch="$(_branch_of "$dir" "$handle")"
+  [ -n "$branch" ] || { printf 'no branch for %s\n' "$handle" >&2; sleep 1; return 1; }
+  info="$( cd "$dir" && gh pr view "$branch" --json state,number,title \
+           -q '.state + "\t" + (.number|tostring) + "\t" + .title' 2>/dev/null )" || info=""
+  IFS=$'\t' read -r state num title <<<"$info"
+  if [ "${state:-}" != "MERGED" ]; then
+    printf 'refusing: PR state is %s (not MERGED)\n' "${state:-unknown}" >&2; sleep 1.2; return 1
+  fi
+  mkdir -p "$STATE_DIR"
+  _logline "$repo" "$branch" "$num" "$title" >> "$LOG"
+  fire_memory_update "$dir" "$branch" "$num" "$title"
+  ( cd "$dir" && workmux remove -f "$handle" )
+}
+
+do_mergeinto() { # repo handle  — merge a chosen branch INTO the worktree's branch
+  local dir="$REPOS/$1" path cur dest
+  path="$( cd "$dir" && workmux path "$2" 2>/dev/null )" || { printf 'no path for %s\n' "$2" >&2; sleep 1; return 1; }
+  cur="$(git -C "$path" rev-parse --abbrev-ref HEAD)"
+  dest="$(git -C "$path" for-each-ref --format='%(refname:short)' refs/heads \
+          | grep -vx "$cur" | fzf --prompt="merge INTO $cur from> ")" || return 0
+  [ -n "$dest" ] || return 0
+  git -C "$path" merge "$dest" || { printf 'conflict — resolve in %s then commit\n' "$path" >&2; sleep 2; return 1; }
+}
+
+case "${1:-}" in
+  __gather)    gather; exit 0 ;;
+  __close)     shift; do_close "$1" "$2"; exit $? ;;
+  __mergeinto) shift; do_mergeinto "$1" "$2"; exit $? ;;
+esac
+
+export SELF="$0"
 gather | fzf --with-nth=2.. --delimiter=$'\t' \
-  --header 'enter: jump · ctrl-r: refresh' \
-  --bind "ctrl-r:reload($0 __gather)" \
+  --header 'enter: jump · c: close(merged) · m: merge-into · ctrl-r: refresh' \
+  --bind 'ctrl-r:reload("$SELF" __gather)' \
   --bind 'enter:execute-silent(k={1}; workmux open "${k#*:}")+abort' \
+  --bind 'c:execute(k={1}; "$SELF" __close "${k%%:*}" "${k#*:}" || true)+reload("$SELF" __gather)' \
+  --bind 'm:execute(k={1}; "$SELF" __mergeinto "${k%%:*}" "${k#*:}" || true)+reload("$SELF" __gather)' \
   || true
