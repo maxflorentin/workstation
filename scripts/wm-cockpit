@@ -108,15 +108,35 @@ fire_memory_update() { # repo_dir branch prnum title
   ( cd "$1" && nohup claude -p "Worktree $2 (PR #$3: $4) merged and shipped. Update this project's memory (MEMORY.md and the relevant project_*.md) to mark the initiative done. Memory only — do not touch code or anything else." >/dev/null 2>&1 & )
 }
 
-do_close() { # repo handle  — refuses unless the PR is MERGED
-  local repo="$1" handle="$2" dir="$REPOS/$1" branch info state num title
+# Default branch of the repo (origin/HEAD, falling back to main/master).
+_default_branch() { # repo_dir -> branch name
+  local d="$1" ref
+  ref="$(git -C "$d" symbolic-ref -q refs/remotes/origin/HEAD 2>/dev/null || true)"
+  if [ -n "$ref" ]; then printf '%s\n' "${ref#refs/remotes/origin/}"; return; fi
+  local b
+  for b in main master; do
+    git -C "$d" show-ref -q "refs/heads/$b" && { printf '%s\n' "$b"; return; }
+  done
+  printf 'main\n'
+}
+
+do_close() { # repo handle  — refuses unless the PR is MERGED, or the branch
+             # (no PR — direct-push workflow) is merged into the default branch.
+  local repo="$1" handle="$2" dir="$REPOS/$1" branch info state num title main
   branch="$(_branch_of "$dir" "$handle")"
   [ -n "$branch" ] || { printf 'no branch for %s\n' "$handle" >&2; sleep 1; return 1; }
   info="$( cd "$dir" && gh pr view "$branch" --json state,number,title \
            -q '.state + "\t" + (.number|tostring) + "\t" + .title' 2>/dev/null )" || info=""
   IFS=$'\t' read -r state num title <<<"$info"
   if [ "${state:-}" != "MERGED" ]; then
-    printf 'refusing: PR state is %s (not MERGED)\n' "${state:-unknown}" >&2; sleep 1.2; return 1
+    main="$(_default_branch "$dir")"
+    git -C "$dir" fetch -q origin "$main" 2>/dev/null || true
+    if ! git -C "$dir" merge-base --is-ancestor "$branch" "origin/$main" 2>/dev/null \
+       && ! git -C "$dir" merge-base --is-ancestor "$branch" "$main" 2>/dev/null; then
+      printf 'refusing: PR state is %s and branch not merged into %s\n' "${state:-unknown}" "$main" >&2
+      sleep 1.2; return 1
+    fi
+    num="${num:-?}"; title="${title:-merged into $main}"
   fi
   mkdir -p "$STATE_DIR"
   _logline "$repo" "$branch" "$num" "$title" >> "$LOG"
@@ -157,7 +177,7 @@ esac
 
 export SELF="$0"
 _cached | fzf --with-nth=2.. --delimiter=$'\t' \
-  --header 'enter: jump · c: close(merged) · m: merge-into · ctrl-r: refresh' \
+  --header 'enter: jump · c: close(PR merged or branch merged) · m: merge-into · ctrl-r: refresh' \
   --bind 'ctrl-r:reload("$SELF" __gather)' \
   --bind 'enter:execute-silent(k={1}; tmux run-shell -b "\"$SELF\" __open \"${k%%:*}\" \"${k#*:}\"")+abort' \
   --bind 'c:execute(k={1}; "$SELF" __close "${k%%:*}" "${k#*:}" || true)+reload("$SELF" __gather)' \
