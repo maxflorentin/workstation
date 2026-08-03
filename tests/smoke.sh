@@ -290,6 +290,11 @@ else
 fi
 rm -rf "$tmp_data" "$tmp_bin"
 
+# --- clau: resume-or-start Claude wrapper ---
+check_bash "$ROOT/scripts/clau"
+check_output_contains "clau resume-or-start" "$(cat "$ROOT/scripts/clau" 2>/dev/null)" 'claude -c'
+check_output_contains "clau fallback" "$(cat "$ROOT/scripts/clau" 2>/dev/null)" '|| exec claude'
+
 echo ""
 if [ "$FAIL" -gt 0 ]; then
     echo "smoke failed: $FAIL failure(s)"

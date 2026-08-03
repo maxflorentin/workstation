@@ -108,7 +108,8 @@ alias evrm='envy-rm'
 alias evsw='envy-switch'
 
 # Claude / AI
-alias clau='claude -c'
+# `clau` is now a PATH script (scripts/clau): resume-or-start. An alias here
+# would shadow it in interactive shells.
 
 # Tmux / Workmux
 alias wm='workmux'

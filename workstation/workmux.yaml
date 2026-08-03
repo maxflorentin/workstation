@@ -11,7 +11,17 @@ nerdfont: true
 sidebar:
   width: 40
 
+# workmux per-worktree window layout (used by `workmux open`/`add`):
+# a single pane running the resume-or-start agent. Sidebar is separate.
+agent: clau
 panes:
+  - command: <agent>
+
+# Default tmux "workspace" window layout, read by linux/tmux-layout via yq
+# (NOT by workmux). Kept as the dashboard + git-status home base. Decoupled
+# from `panes:` so the worktree `open` stays clean while the workspace keeps
+# its multi-pane layout.
+workspace_panes:
   - command: workmux dashboard
   - split: horizontal
     percentage: 70

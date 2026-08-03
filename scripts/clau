@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Resume the current directory's Claude session if one exists; else start fresh.
+# `claude -c` exits non-zero when there is no conversation to continue (fresh
+# worktree) -> exec a new agent. On a normal resume-then-quit it exits 0 and we
+# do NOT restart.
+claude -c 2>/dev/null || exec claude "$@"
