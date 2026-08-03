@@ -69,16 +69,29 @@ for w in wt:
 PY
 }
 
+# Emit the display rows for one repo (combines _repo_rows + _cockpit_row).
+_repo_display() { # repo_dir repo_name
+  local dir="$1" repo="$2" handle branch state ci prnum
+  while IFS=$'\t' read -r handle branch state ci prnum; do
+    [ -n "$handle" ] || continue
+    _cockpit_row "$repo" "$handle" "$branch" "$state" "$ci" "$prnum"
+  done < <(_repo_rows "$dir")
+}
+
+# Gather all repos in parallel (each does a gh round-trip). Output is ordered
+# by repo so the list is stable across refreshes; wall-clock ~= the slowest repo.
 gather() {
-  local dir repo handle branch state ci prnum
+  local dir repo i=0 tmpd
+  tmpd="$(mktemp -d)"
   for dir in "$REPOS"/*/; do
     [ -e "$dir/.git" ] || continue
     repo="$(basename "$dir")"
-    while IFS=$'\t' read -r handle branch state ci prnum; do
-      [ -n "$handle" ] || continue
-      _cockpit_row "$repo" "$handle" "$branch" "$state" "$ci" "$prnum"
-    done < <(_repo_rows "$dir")
+    _repo_display "$dir" "$repo" > "$tmpd/$(printf '%03d' "$i")" &
+    i=$((i + 1))
   done
+  wait || true   # a slow/failing repo must not abort the whole gather
+  cat "$tmpd"/* 2>/dev/null
+  rm -rf "$tmpd"
 }
 
 # --- actions (invoked as sub-commands from the fzf bindings) ---
@@ -121,17 +134,32 @@ do_mergeinto() { # repo handle  — merge a chosen branch INTO the worktree's br
   git -C "$path" merge "$dest" || { printf 'conflict — resolve in %s then commit\n' "$path" >&2; sleep 2; return 1; }
 }
 
+# --- cache: reopening the cockpit is instant within TTL; ctrl-r / close /
+#     merge always force a fresh gather (and refresh the cache). ---
+CACHE="$STATE_DIR/rows.cache"
+CACHE_TTL="${WM_COCKPIT_TTL:-90}"   # seconds
+_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
+_fresh()  { mkdir -p "$STATE_DIR"; gather | tee "$CACHE"; }
+_cached() {
+  if [ -f "$CACHE" ] && [ "$(( $(date +%s) - $(_mtime "$CACHE") ))" -lt "$CACHE_TTL" ]; then
+    cat "$CACHE"
+  else
+    _fresh
+  fi
+}
+
 case "${1:-}" in
-  __gather)    gather; exit 0 ;;
+  __gather)    _fresh; exit 0 ;;
+  __open)      shift; ( cd "$REPOS/$1" && workmux open "$2" ); exit $? ;;
   __close)     shift; do_close "$1" "$2"; exit $? ;;
   __mergeinto) shift; do_mergeinto "$1" "$2"; exit $? ;;
 esac
 
 export SELF="$0"
-gather | fzf --with-nth=2.. --delimiter=$'\t' \
+_cached | fzf --with-nth=2.. --delimiter=$'\t' \
   --header 'enter: jump · c: close(merged) · m: merge-into · ctrl-r: refresh' \
   --bind 'ctrl-r:reload("$SELF" __gather)' \
-  --bind 'enter:execute-silent(k={1}; workmux open "${k#*:}")+abort' \
+  --bind 'enter:execute-silent(k={1}; tmux run-shell -b "\"$SELF\" __open \"${k%%:*}\" \"${k#*:}\"")+abort' \
   --bind 'c:execute(k={1}; "$SELF" __close "${k%%:*}" "${k#*:}" || true)+reload("$SELF" __gather)' \
   --bind 'm:execute(k={1}; "$SELF" __mergeinto "${k%%:*}" "${k#*:}" || true)+reload("$SELF" __gather)' \
   || true
