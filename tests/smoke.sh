@@ -290,6 +290,13 @@ else
 fi
 rm -rf "$tmp_data" "$tmp_bin"
 
+# --- wm-cockpit: row builder (no workmux/gh) ---
+check_bash "$ROOT/scripts/wm-cockpit"
+cockpit_row="$(WM_COCKPIT_SELFTEST=1 "$ROOT/scripts/wm-cockpit" __rowtest data-platform wm-foo feat/x MERGED ci:ok 145 2>/dev/null)"
+check_output_contains "cockpit row key"    "$cockpit_row" 'data-platform:wm-foo'
+check_output_contains "cockpit row merged" "$cockpit_row" 'MERGED'
+check_output_contains "cockpit row pr"     "$cockpit_row" 'PR#145'
+
 # --- nvim aerial outline plugin ---
 check_output_contains "aerial plugin spec" "$(cat "$ROOT/editors/nvim/lua/plugins/aerial.lua" 2>/dev/null)" 'stevearc/aerial.nvim'
 

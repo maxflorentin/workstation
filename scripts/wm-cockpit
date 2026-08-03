@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+# wm-cockpit — one fzf screen of all worktrees x PR state, across repos.
+# Native-first: workmux + gh + fzf. No daemon; polls on invoke and on refresh.
+#
+# Interfaces captured 2026-08-03:
+#   workmux list --json  -> [{handle,branch,path,is_open,is_main,
+#                             has_uncommitted_changes,mode,created_at}]  (per-repo)
+#   gh pr list --state all --json number,state,headRefName,statusCheckRollup
+#                        -> [{number,state,headRefName,statusCheckRollup:[{conclusion}]}]
+# `workmux list --json` does NOT carry PR data even with --pr, so PRs come from
+# one `gh pr list` per repo (cheaper than `gh pr view` per branch).
+set -euo pipefail
+
+REPOS="${WM_REPOS:-$HOME/repos}"
+
+icon() { case "$1" in
+  MERGED) printf '✅';; OPEN) printf '🔵';; CLOSED) printf '⚫';; *) printf '❔';;
+esac; }
+
+# repo handle branch state ci prnum -> "repo:handle<TAB>display"
+# First field (key) is stable: actions split on ':' to get repo and handle.
+_cockpit_row() {
+  printf '%s:%s\t%s %-15s %-40s PR#%-5s %-7s %s\n' \
+    "$1" "$2" "$(icon "$4")" "$1" "$3" "${6:-?}" "$4" "${5:-?}"
+}
+
+# Self-test hook so smoke.sh can exercise _cockpit_row without workmux/gh.
+if [ "${WM_COCKPIT_SELFTEST:-}" = "1" ] && [ "${1:-}" = "__rowtest" ]; then
+  shift; _cockpit_row "$1" "$2" "$3" "$4" "$5" "$6"; exit 0
+fi
+
+# Emit "handle<TAB>branch<TAB>state<TAB>ci<TAB>prnum" for each worktree of a repo.
+# Degrades to state=no-pr/unknown when gh is unavailable; never fails the screen.
+_repo_rows() { # repo_dir
+  local dir="$1" wt pr
+  wt="$(cd "$dir" && workmux list --json 2>/dev/null || echo '[]')"
+  pr="$(cd "$dir" && gh pr list --state all --limit 200 \
+        --json number,state,headRefName,statusCheckRollup 2>/dev/null || echo '[]')"
+  WT="$wt" PR="$pr" python3 - <<'PY'
+import json, os
+wt = json.loads(os.environ.get("WT") or "[]")
+prs = {p.get("headRefName"): p for p in json.loads(os.environ.get("PR") or "[]")}
+def ci(p):
+    c = [x.get("conclusion") for x in (p.get("statusCheckRollup") or []) if isinstance(x, dict)]
+    if not c: return "-"
+    if "FAILURE" in c: return "ci:fail"
+    if all(x == "SUCCESS" for x in c): return "ci:ok"
+    return "ci:…"
+for w in wt:
+    br = w.get("branch", "")
+    p = prs.get(br)
+    if p:
+        state, num, cir = p.get("state", "?"), p.get("number", "?"), ci(p)
+    else:
+        state, num, cir = "no-pr", "?", "-"
+    print("\t".join([w.get("handle", ""), br, state, cir, str(num)]))
+PY
+}
+
+gather() {
+  local dir repo handle branch state ci prnum
+  for dir in "$REPOS"/*/; do
+    [ -e "$dir/.git" ] || continue
+    repo="$(basename "$dir")"
+    while IFS=$'\t' read -r handle branch state ci prnum; do
+      [ -n "$handle" ] || continue
+      _cockpit_row "$repo" "$handle" "$branch" "$state" "$ci" "$prnum"
+    done < <(_repo_rows "$dir")
+  done
+}
+
+# Sub-command used by fzf reload.
+[ "${1:-}" = "__gather" ] && { gather; exit 0; }
+
+gather | fzf --with-nth=2.. --delimiter=$'\t' \
+  --header 'enter: jump · ctrl-r: refresh' \
+  --bind "ctrl-r:reload($0 __gather)" \
+  --bind 'enter:execute-silent(k={1}; workmux open "${k#*:}")+abort' \
+  || true
