@@ -97,8 +97,11 @@ gather() {
 # --- actions (invoked as sub-commands from the fzf bindings) ---
 
 _branch_of() { # repo_dir handle -> branch
-  ( cd "$1" && workmux list --json 2>/dev/null ) | H="$2" python3 -c \
-    'import json,os,sys; d=json.load(sys.stdin); print(next((w.get("branch","") for w in d if w.get("handle")==os.environ["H"]), ""))'
+  local wt
+  wt="$(cd "$1" && workmux list --json 2>/dev/null)"
+  [ -n "$wt" ] || wt='[]'
+  WT="$wt" H="$2" python3 -c \
+    'import json,os; d=json.loads(os.environ["WT"]); print(next((w.get("branch","") for w in d if w.get("handle")==os.environ["H"]), ""))'
 }
 
 # Detached, best-effort: update this repo's Claude memory to mark the merged
