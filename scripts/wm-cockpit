@@ -43,15 +43,21 @@ fi
 
 # Emit "handle<TAB>branch<TAB>state<TAB>ci<TAB>prnum" for each worktree of a repo.
 # Degrades to state=no-pr/unknown when gh is unavailable; never fails the screen.
+# NOTE: WT/PR json can exceed MAX_ARG_STRLEN (128KB, a single env var's cap,
+# distinct from the larger total ARG_MAX) for repos with heavy PR history —
+# so pass them as files, not env vars, or python3 exec silently fails.
 _repo_rows() { # repo_dir
-  local dir="$1" wt pr
-  wt="$(cd "$dir" && workmux list --json 2>/dev/null || echo '[]')"
-  pr="$(cd "$dir" && gh pr list --state all --limit 200 \
-        --json number,state,headRefName,statusCheckRollup 2>/dev/null || echo '[]')"
-  WT="$wt" PR="$pr" python3 - <<'PY'
+  local dir="$1" wt_file pr_file
+  wt_file="$(mktemp)"; pr_file="$(mktemp)"
+  ( cd "$dir" && workmux list --json 2>/dev/null || echo '[]' ) > "$wt_file"
+  ( cd "$dir" && gh pr list --state all --limit 200 \
+        --json number,state,headRefName,statusCheckRollup 2>/dev/null || echo '[]' ) > "$pr_file"
+  WT_FILE="$wt_file" PR_FILE="$pr_file" python3 - <<'PY'
 import json, os
-wt = json.loads(os.environ.get("WT") or "[]")
-prs = {p.get("headRefName"): p for p in json.loads(os.environ.get("PR") or "[]")}
+with open(os.environ["WT_FILE"]) as f:
+    wt = json.load(f) or []
+with open(os.environ["PR_FILE"]) as f:
+    prs = {p.get("headRefName"): p for p in (json.load(f) or [])}
 def ci(p):
     c = [x.get("conclusion") for x in (p.get("statusCheckRollup") or []) if isinstance(x, dict)]
     if not c: return "-"
@@ -67,6 +73,7 @@ for w in wt:
         state, num, cir = "no-pr", "?", "-"
     print("\t".join([w.get("handle", ""), br, state, cir, str(num)]))
 PY
+  rm -f "$wt_file" "$pr_file"
 }
 
 # Emit the display rows for one repo (combines _repo_rows + _cockpit_row).
