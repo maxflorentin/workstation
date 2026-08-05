@@ -9,6 +9,15 @@
 #                        -> [{number,state,headRefName,statusCheckRollup:[{conclusion}]}]
 # `workmux list --json` does NOT carry PR data even with --pr, so PRs come from
 # one `gh pr list` per repo (cheaper than `gh pr view` per branch).
+#
+# Interface captured 2026-08-05:
+#   workmux status --json -> [{worktree,branch,status,elapsed_secs,title,
+#                              pane_id,git:{has_staged,has_unstaged,
+#                              has_unmerged_commits}}]  (per-repo, all tracked
+#   agents at once). `worktree` is the same identifier as `handle` in
+#   `workmux list`. status is one of: working | waiting | done (agents with
+#   no tracked status are simply absent from the array).
+#   workmux capture <handle> -n N -> raw pane text (used for fzf preview).
 set -euo pipefail
 
 REPOS="${WM_REPOS:-$HOME/repos}"
@@ -17,16 +26,23 @@ icon() { case "$1" in
   MERGED) printf '✅';; OPEN) printf '🔵';; CLOSED) printf '⚫';; *) printf '❔';;
 esac; }
 
-# repo handle branch state ci prnum -> "repo:handle<TAB>display"
+# workmux's own default status icons (docs: "Agent status tracking"). Kept
+# in sync by eye rather than read from the user's workmux config — this is a
+# display default, not a source of truth, so config drift here is harmless.
+agent_icon() { case "$1" in
+  working) printf '🤖';; waiting) printf '💬';; done) printf '✅';; *) printf '  ';;
+esac; }
+
+# repo handle branch state ci prnum agent-status -> "repo:handle<TAB>display"
 # First field (key) is stable: actions split on ':' to get repo and handle.
 _cockpit_row() {
-  printf '%s:%s\t%s %-15s %-40s PR#%-5s %-7s %s\n' \
-    "$1" "$2" "$(icon "$4")" "$1" "$3" "${6:-?}" "$4" "${5:-?}"
+  printf '%s:%s\t%s %s %-15s %-40s PR#%-5s %-7s %s\n' \
+    "$1" "$2" "$(agent_icon "${7:-}")" "$(icon "$4")" "$1" "$3" "${6:-?}" "$4" "${5:-?}"
 }
 
 # Self-test hook so smoke.sh can exercise _cockpit_row without workmux/gh.
 if [ "${WM_COCKPIT_SELFTEST:-}" = "1" ] && [ "${1:-}" = "__rowtest" ]; then
-  shift; _cockpit_row "$1" "$2" "$3" "$4" "$5" "$6"; exit 0
+  shift; _cockpit_row "$1" "$2" "$3" "$4" "$5" "$6" "${7:-}"; exit 0
 fi
 
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/wm-cockpit"
@@ -47,17 +63,20 @@ fi
 # distinct from the larger total ARG_MAX) for repos with heavy PR history —
 # so pass them as files, not env vars, or python3 exec silently fails.
 _repo_rows() { # repo_dir
-  local dir="$1" wt_file pr_file
-  wt_file="$(mktemp)"; pr_file="$(mktemp)"
+  local dir="$1" wt_file pr_file st_file
+  wt_file="$(mktemp)"; pr_file="$(mktemp)"; st_file="$(mktemp)"
   ( cd "$dir" && workmux list --json 2>/dev/null || echo '[]' ) > "$wt_file"
   ( cd "$dir" && gh pr list --state all --limit 200 \
         --json number,state,headRefName,statusCheckRollup 2>/dev/null || echo '[]' ) > "$pr_file"
-  WT_FILE="$wt_file" PR_FILE="$pr_file" python3 - <<'PY'
+  ( cd "$dir" && workmux status --json 2>/dev/null || echo '[]' ) > "$st_file"
+  WT_FILE="$wt_file" PR_FILE="$pr_file" ST_FILE="$st_file" python3 - <<'PY'
 import json, os
 with open(os.environ["WT_FILE"]) as f:
     wt = json.load(f) or []
 with open(os.environ["PR_FILE"]) as f:
     prs = {p.get("headRefName"): p for p in (json.load(f) or [])}
+with open(os.environ["ST_FILE"]) as f:
+    statuses = {s.get("worktree"): s.get("status", "") for s in (json.load(f) or [])}
 def ci(p):
     c = [x.get("conclusion") for x in (p.get("statusCheckRollup") or []) if isinstance(x, dict)]
     if not c: return "-"
@@ -71,17 +90,18 @@ for w in wt:
         state, num, cir = p.get("state", "?"), p.get("number", "?"), ci(p)
     else:
         state, num, cir = "no-pr", "?", "-"
-    print("\t".join([w.get("handle", ""), br, state, cir, str(num)]))
+    handle = w.get("handle", "")
+    print("\t".join([handle, br, state, cir, str(num), statuses.get(handle, "")]))
 PY
-  rm -f "$wt_file" "$pr_file"
+  rm -f "$wt_file" "$pr_file" "$st_file"
 }
 
 # Emit the display rows for one repo (combines _repo_rows + _cockpit_row).
 _repo_display() { # repo_dir repo_name
-  local dir="$1" repo="$2" handle branch state ci prnum
-  while IFS=$'\t' read -r handle branch state ci prnum; do
+  local dir="$1" repo="$2" handle branch state ci prnum agent
+  while IFS=$'\t' read -r handle branch state ci prnum agent; do
     [ -n "$handle" ] || continue
-    _cockpit_row "$repo" "$handle" "$branch" "$state" "$ci" "$prnum"
+    _cockpit_row "$repo" "$handle" "$branch" "$state" "$ci" "$prnum" "$agent"
   done < <(_repo_rows "$dir")
 }
 
@@ -154,6 +174,11 @@ do_close() { # repo handle  — refuses unless the PR is MERGED, or the branch
   ( cd "$dir" && workmux remove -f "$handle" )
 }
 
+do_preview() { # repo handle  — last lines of the agent's pane, for fzf --preview
+  local dir="$REPOS/$1"
+  ( cd "$dir" && workmux capture "$2" -n 200 2>/dev/null ) || printf '(no capture available)\n'
+}
+
 do_mergeinto() { # repo handle  — merge a chosen branch INTO the worktree's branch
   local dir="$REPOS/$1" path cur dest
   path="$( cd "$dir" && workmux path "$2" 2>/dev/null )" || { printf 'no path for %s\n' "$2" >&2; sleep 1; return 1; }
@@ -183,13 +208,18 @@ case "${1:-}" in
   __open)      shift; ( cd "$REPOS/$1" && workmux open "$2" ); exit $? ;;
   __close)     shift; do_close "$1" "$2"; exit $? ;;
   __mergeinto) shift; do_mergeinto "$1" "$2"; exit $? ;;
+  __preview)   shift; do_preview "$1" "$2"; exit 0 ;;
 esac
 
 export SELF="$0"
 _cached | fzf --with-nth=2.. --delimiter=$'\t' \
-  --header 'enter: jump · c: close(PR merged or branch merged) · m: merge-into · ctrl-r: refresh' \
+  --header 'enter: jump · c: close · m: merge-into · s: jump to 💬waiting · ctrl-r: refresh' \
+  --preview-window 'right:50%:wrap' \
+  --preview 'k={1}; "$SELF" __preview "${k%%:*}" "${k#*:}"' \
   --bind 'ctrl-r:reload("$SELF" __gather)' \
   --bind 'enter:execute-silent(k={1}; tmux run-shell -b "\"$SELF\" __open \"${k%%:*}\" \"${k#*:}\"")+abort' \
   --bind 'c:execute(k={1}; "$SELF" __close "${k%%:*}" "${k#*:}" || true)+reload("$SELF" __gather)' \
   --bind 'm:execute(k={1}; "$SELF" __mergeinto "${k%%:*}" "${k#*:}" || true)+reload("$SELF" __gather)' \
+  --bind 's:change-query(💬)+first' \
+  --bind 'S:change-query()' \
   || true

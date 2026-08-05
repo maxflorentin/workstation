@@ -8,8 +8,11 @@ nerdfont: true
 
 # Fixed width avoids the dynamic reflow-on-resize sidebar bug present in
 # workmux <= 0.1.209 (width drifted between 10/38/67 cols across windows).
+# layout: compact keeps every window's sidebar at 1 line/agent regardless of
+# what 'v' was last pressed in that window (the runtime toggle doesn't persist).
 sidebar:
   width: 40
+  layout: compact
 
 # workmux per-worktree window layout (used by `workmux open`/`add`):
 # a single pane running the resume-or-start agent. Sidebar is separate.
@@ -30,3 +33,4 @@ workspace_panes:
     split: vertical
     target: 0
     percentage: 30
+theme: phosphor-arcade
