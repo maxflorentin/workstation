@@ -22,20 +22,41 @@ export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 
 # --- System update ---
 echo "[2/10] Updating system..."
-sudo apt-get update -qq && sudo apt-get upgrade -y -qq
+
+# Detect package manager and set commands + package lists
+if command -v apt-get >/dev/null 2>&1; then
+  PKG_UPDATE="sudo apt-get update -qq && sudo apt-get upgrade -y -qq"
+  PKG_INSTALL="sudo apt-get install -y -qq"
+  IS_DEBIAN=1
+elif command -v dnf >/dev/null 2>&1; then
+  PKG_UPDATE="sudo dnf -y upgrade --refresh"
+  PKG_INSTALL="sudo dnf install -y"
+  IS_DEBIAN=0
+elif command -v pacman >/dev/null 2>&1; then
+  PKG_UPDATE="sudo pacman -Syu --noconfirm"
+  PKG_INSTALL="sudo pacman -S --noconfirm"
+  IS_DEBIAN=0
+else
+  echo "Unsupported package manager (no apt-get/dnf/pacman found)"; exit 1
+fi
+
+# Run update
+eval "$PKG_UPDATE"
 
 # --- Core packages ---
 echo "[3/10] Installing core packages..."
-sudo apt-get install -y -qq \
-    git curl wget unzip \
-    build-essential cmake \
-    tmux btop \
-    openssh-server \
-    age \
-    jq ripgrep fd-find bat fzf eza autojump \
-    zsh zsh-syntax-highlighting \
-    lsof ecryptfs-utils \
-    fastfetch shellcheck lm-sensors
+if [ "${IS_DEBIAN:-0}" -eq 1 ]; then
+  CORE_PKGS="git curl wget unzip build-essential cmake tmux btop openssh-server age jq ripgrep fd-find bat fzf eza autojump zsh zsh-syntax-highlighting lsof ecryptfs-utils fastfetch shellcheck lm-sensors"
+  $PKG_INSTALL $CORE_PKGS || echo "Some packages failed to install; install missing packages manually."
+else
+  # Fedora/Arch mapping (adjust names according to distro availability)
+  CORE_PKGS="git curl wget unzip gcc gcc-c++ make cmake tmux btop openssh-server age jq ripgrep fd-find bat fzf exa autojump zsh zsh-syntax-highlighting lsof ecryptfs-utils fastfetch shellcheck lm_sensors"
+  # On Fedora, try installing Development Tools group to get build essentials
+  if command -v dnf >/dev/null 2>&1; then
+    sudo dnf groupinstall -y "Development Tools" || true
+  fi
+  $PKG_INSTALL $CORE_PKGS || echo "Some packages failed to install; install missing packages manually (names may differ on this distro)."
+fi
 
 # --- Docker ---
 echo "[4/10] Installing Docker..."
@@ -89,7 +110,12 @@ if ! command -v nvim &>/dev/null; then
         sudo ln -sf /opt/nvim-linux-arm64/bin/nvim /usr/local/bin/nvim
         rm nvim-linux-arm64.tar.gz
     else
-        sudo apt-get install -y -qq neovim
+        # Use detected package manager to install neovim when available
+        if [ -n "${PKG_INSTALL:-}" ]; then
+            $PKG_INSTALL neovim || echo "Failed to install neovim via package manager; please install manually or via brew."
+        else
+            echo "No package manager detected to install neovim; please install manually."
+        fi
     fi
 else
     echo "  already installed"
@@ -146,7 +172,7 @@ fi
 
 # --- ecryptfs SSH fix ---
 # When home is encrypted, authorized_keys must live outside ~/
-if dpkg -l ecryptfs-utils 2>/dev/null | grep -q '^ii'; then
+if (command -v dpkg >/dev/null 2>&1 && dpkg -l ecryptfs-utils 2>/dev/null | grep -q '^ii') || (command -v rpm >/dev/null 2>&1 && rpm -q ecryptfs-utils >/dev/null 2>&1); then
     echo "Configuring SSH for ecryptfs compatibility..."
     sudo mkdir -p /etc/ssh/authorized_keys
     if [ -f "$HOME/.ssh/authorized_keys" ]; then
