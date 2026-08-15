@@ -10,7 +10,11 @@ push="$HOME/.local/bin/clip-push"
 last=""
 
 while true; do
-    cur="$({ pbpaste 2>/dev/null; command -v pngpaste >/dev/null 2>&1 && pngpaste - 2>/dev/null; } | md5)"
+    # pngpaste exits non-zero when the clipboard holds text instead of an
+    # image (the common case) — under pipefail + set -e that would kill the
+    # whole loop on every text copy, so both branches are guarded with
+    # `|| true`.
+    cur="$({ pbpaste 2>/dev/null || true; command -v pngpaste >/dev/null 2>&1 && pngpaste - 2>/dev/null || true; } | md5)"
     if [ "$cur" != "$last" ]; then
         last="$cur"
         "$push" "$target" >/dev/null 2>&1 || true
