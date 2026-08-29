@@ -1,6 +1,7 @@
 "$schema" = 'https://starship.rs/config-schema.json'
 
-scan_timeout = 10
+# Avoid warnings in large repos while keeping slow prompt modules bounded.
+scan_timeout = 100
 command_timeout = 500
 right_format = "$status$jobs${custom.tmux}$time"
 
