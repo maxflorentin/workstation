@@ -1,0 +1,28 @@
+# One isolated Chromium per scope, driven by agents over CDP and by the operator over a web UI.
+#   SCOPE=admin UI_PORT=3110 CDP_PORT=9310 docker compose -f linux/browser/docker-compose.yaml -p browser-admin up -d
+# Both ports bind to 127.0.0.1 only; reach the UI from the Mac through an SSH tunnel.
+services:
+  chromium:
+    image: lscr.io/linuxserver/chromium@sha256:b147169cc5ff21c62df977f314598537eecf566591c13ad0726b1e5cbd0d01ca
+    container_name: browser-${SCOPE:?set SCOPE}
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: America/Argentina/Buenos_Aires
+      CHROME_CLI: --remote-debugging-port=9222 --no-first-run
+    volumes:
+      - ${BROWSER_DATA:-${HOME}/.local/share/browser}/${SCOPE}:/config
+    ports:
+      - "127.0.0.1:${UI_PORT:?set UI_PORT}:3000"
+      - "127.0.0.1:${CDP_PORT:?set CDP_PORT}:9223"
+    shm_size: 1gb
+    restart: unless-stopped
+
+  # Chromium only listens for CDP on the container's loopback; forward it to a published port.
+  cdp:
+    image: alpine/socat@sha256:603174b77eebaba25ba8f8ebb15e1234d6600409554e95d6fb203fd106150287
+    container_name: browser-${SCOPE}-cdp
+    network_mode: service:chromium
+    command: TCP-LISTEN:9223,fork,reuseaddr TCP:127.0.0.1:9222
+    depends_on: [chromium]
+    restart: unless-stopped

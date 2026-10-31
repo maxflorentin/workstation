@@ -1,0 +1,79 @@
+# Media-only agent running on a free model: no terminal, files, web, browser or MCP.
+# Its only reach is the media tools, which use the locked-down mediabot endpoint.
+
+model:
+  provider: openrouter
+  default: thinkingmachines/inkling-small:free
+
+secrets:
+  command:
+    enabled: true
+    command: 'age -d -i "$HOME/.envy/keys/media.key" "$HOME/.envy/media.envy.age" | grep -v "^#"'
+
+plugins:
+  enabled:
+    - media-tools
+
+platform_toolsets:
+  cli: [media, clarify]
+  telegram: [media, clarify]
+
+approvals:
+  mode: manual
+
+# Hermes only supports a denylist; re-check after each update.
+skills:
+  disabled:
+    - apple-notes
+    - apple-reminders
+    - architecture-diagram
+    - arxiv
+    - ascii-video
+    - baoyu-infographic
+    - blocked-page-recovery
+    - claude-code
+    - claude-design
+    - codebase-inspection
+    - codex
+    - competitor-news-monitor
+    - computer-use
+    - document-to-action-items
+    - dogfood
+    - email-inbox-triage
+    - findmy
+    - github
+    - google-workspace
+    - grounded-citations
+    - himalaya
+    - humanizer
+    - imessage
+    - manim-video
+    - maps
+    - meeting-action-items
+    - microsoft-office
+    - obsidian
+    - p5js
+    - pdf
+    - popular-web-designs
+    - product-price-monitor
+    - requesting-code-review
+    - sdlc-review
+    - simplify-code
+    - songwriting-and-ai-music
+    - spike
+    - systematic-debugging
+    - teams-meeting-pipeline
+    - test-driven-development
+    - weekly-review-planning
+    - xurl
+    - youtube-content
+
+# Free models vanish or saturate without notice (see README.md). Hermes walks this
+# chain in order; openrouter/free picks whichever free model is up, Gemini is the last resort.
+fallback_model:
+  - provider: openrouter
+    model: nvidia/nemotron-3.5-lightning:free
+  - provider: openrouter
+    model: openrouter/free
+  - provider: gemini
+    model: gemini-3.1-flash-lite

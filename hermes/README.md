@@ -41,6 +41,9 @@ hermes/
 ├── authorize-client.sh           # append the per-client key to <client> authorized_keys
 ├── rootless-gateway-setup.sh     # bring up rootless Docker for the hermes service user
 ├── migrate-to-hermes-user.sh     # provision Hermes under the unprivileged hermes user
+├── install-profile.sh            # install a profile distribution and its envy context into the live Hermes
+├── hermes-inventory.sh           # read-only snapshot of the live Hermes, secrets redacted
+├── profiles/media/               # terminal-less media agent on free models (see its README)
 ├── ssh/config.example            # client inventory template (real config is host-local)
 └── .gitignore                    # keeps secrets and pubkeys out
 ```

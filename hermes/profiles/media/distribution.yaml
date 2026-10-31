@@ -1,0 +1,10 @@
+name: media
+version: 0.1.0
+description: "Agente de media (series, películas, música). Sin terminal ni archivos: solo la herramienta media."
+author: "Max Florentin"
+license: "proprietary"
+
+env_requires:
+  - name: OPENROUTER_API_KEY
+    description: "Modelos gratis vía OpenRouter. Viene del contexto envy media, no del .env"
+    required: false

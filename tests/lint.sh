@@ -23,6 +23,8 @@ else
         "$ROOT/linux/bootstrap.sh" \
         "$ROOT/linux/ecryptfs-auto-mount" \
         "$ROOT/linux/tailscale-client-setup.sh" \
+        "$ROOT/hermes/install-profile.sh" \
+        "$ROOT/hermes/hermes-inventory.sh" \
         "$ROOT/linux/media/media" \
         "$ROOT/linux/media/hermes-media-dispatch" \
         "$ROOT/linux/media/hermes-media-setup.sh" \

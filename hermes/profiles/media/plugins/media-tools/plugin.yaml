@@ -1,0 +1,10 @@
+manifest_version: 1
+name: media-tools
+version: 0.1.0
+description: "Narrow media tools over the locked-down mediabot SSH endpoint, for profiles without a terminal."
+author: "Max Florentin"
+kind: standalone
+provides_tools:
+  - media_search
+  - media_add
+  - media_status
