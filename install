@@ -31,6 +31,11 @@ ln -sfn "$DOTFILES/editors/nvim" "$HOME/.config/nvim"
 mkdir -p "$HOME/.config/workmux"
 ln -sfn "$DOTFILES/workstation/workmux.yaml" "$HOME/.config/workmux/config.yaml"
 
+# opencode (skills/rules are read from ~/.claude; only config + plugins live here)
+mkdir -p "$HOME/.config/opencode/plugins"
+ln -sf "$DOTFILES/opencode/opencode.jsonc" "$HOME/.config/opencode/opencode.jsonc"
+ln -sf "$DOTFILES/opencode/plugins/workmux-status.ts" "$HOME/.config/opencode/plugins/workmux-status.ts"
+
 # Scripts → ~/.local/bin
 mkdir -p "$HOME/.local/bin"
 

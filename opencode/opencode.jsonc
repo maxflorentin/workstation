@@ -1,0 +1,30 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // Skills and global rules come from ~/.claude (opencode reads ~/.claude/skills
+  // and ~/.claude/CLAUDE.md natively), so there is a single source for both agents.
+  // Model: chosen via /connect + /models (opencode remembers the last one).
+  "permission": {
+    // Closer to Claude Code: shell commands ask, read-only ones run freely.
+    "bash": {
+      "*": "ask",
+      "ls *": "allow",
+      "cat *": "allow",
+      "head *": "allow",
+      "tail *": "allow",
+      "wc *": "allow",
+      "grep *": "allow",
+      "rg *": "allow",
+      "find *": "allow",
+      "which *": "allow",
+      "pwd": "allow",
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+      "git show*": "allow",
+      "git branch*": "allow",
+      "gh api *": "allow",
+      "gh codespace *": "allow",
+      "rm -rf *": "deny"
+    }
+  }
+}
