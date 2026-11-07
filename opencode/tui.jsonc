@@ -1,0 +1,9 @@
+{
+  "$schema": "https://opencode.ai/tui.json",
+  // OpenCode's TUI captures the mouse by default. That steals drag from tmux,
+  // so tmux never enters copy-mode and never emits the OSC52 sequence that
+  // puts the selection on the local clipboard (same mechanism the rest of the
+  // tmux config relies on). Disabling mouse capture hands drag back to tmux,
+  // restoring select-to-copy. Scroll the TUI with the keyboard instead.
+  "mouse": false
+}

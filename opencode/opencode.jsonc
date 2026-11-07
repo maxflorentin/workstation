@@ -3,28 +3,37 @@
   // Skills and global rules come from ~/.claude (opencode reads ~/.claude/skills
   // and ~/.claude/CLAUDE.md natively), so there is a single source for both agents.
   // Model: chosen via /connect + /models (opencode remembers the last one).
-  "permission": {
+  "permissions": [
     // Closer to Claude Code: shell commands ask, read-only ones run freely.
-    "bash": {
-      "*": "ask",
-      "ls *": "allow",
-      "cat *": "allow",
-      "head *": "allow",
-      "tail *": "allow",
-      "wc *": "allow",
-      "grep *": "allow",
-      "rg *": "allow",
-      "find *": "allow",
-      "which *": "allow",
-      "pwd": "allow",
-      "git status*": "allow",
-      "git diff*": "allow",
-      "git log*": "allow",
-      "git show*": "allow",
-      "git branch*": "allow",
-      "gh api *": "allow",
-      "gh codespace *": "allow",
-      "rm -rf *": "deny"
-    }
-  }
+    { "action": "shell", "resource": "*", "effect": "ask" },
+    { "action": "shell", "resource": "ls *", "effect": "allow" },
+    { "action": "shell", "resource": "cat *", "effect": "allow" },
+    { "action": "shell", "resource": "head *", "effect": "allow" },
+    { "action": "shell", "resource": "tail *", "effect": "allow" },
+    { "action": "shell", "resource": "wc *", "effect": "allow" },
+    { "action": "shell", "resource": "grep *", "effect": "allow" },
+    { "action": "shell", "resource": "rg *", "effect": "allow" },
+    { "action": "shell", "resource": "find *", "effect": "allow" },
+    { "action": "shell", "resource": "which *", "effect": "allow" },
+    { "action": "shell", "resource": "pwd", "effect": "allow" },
+    { "action": "shell", "resource": "git status *", "effect": "allow" },
+    { "action": "shell", "resource": "git diff *", "effect": "allow" },
+    { "action": "shell", "resource": "git log *", "effect": "allow" },
+    { "action": "shell", "resource": "git show *", "effect": "allow" },
+    { "action": "shell", "resource": "git branch *", "effect": "allow" },
+    { "action": "shell", "resource": "gh api *", "effect": "allow" },
+    { "action": "shell", "resource": "gh codespace *", "effect": "allow" },
+    { "action": "shell", "resource": "rm -rf *", "effect": "deny" },
+
+    // Skills that ship from Claude and whose instructions call Claude-only
+    // connectors/tools (desktop browser, computer use, memory, Docs/Drive).
+    // Denying them stops OpenCode from advertising skills it cannot run.
+    { "action": "skill", "resource": "built-in-browser", "effect": "deny" },
+    { "action": "skill", "resource": "chrome-browser", "effect": "deny" },
+    { "action": "skill", "resource": "computer-use", "effect": "deny" },
+    { "action": "skill", "resource": "import-memory", "effect": "deny" },
+    { "action": "skill", "resource": "docs", "effect": "deny" },
+    { "action": "skill", "resource": "google-workspace", "effect": "deny" },
+    { "action": "skill", "resource": "morning", "effect": "deny" }
+  ]
 }

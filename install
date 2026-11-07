@@ -34,7 +34,10 @@ ln -sfn "$DOTFILES/workstation/workmux.yaml" "$HOME/.config/workmux/config.yaml"
 # opencode (skills/rules are read from ~/.claude; only config + plugins live here)
 mkdir -p "$HOME/.config/opencode/plugins"
 ln -sf "$DOTFILES/opencode/opencode.jsonc" "$HOME/.config/opencode/opencode.jsonc"
-ln -sf "$DOTFILES/opencode/plugins/workmux-status.ts" "$HOME/.config/opencode/plugins/workmux-status.ts"
+ln -sf "$DOTFILES/opencode/tui.jsonc" "$HOME/.config/opencode/tui.jsonc"
+# V2 loads plugin directories (entry: server.ts); clean up the old single-file link.
+rm -f "$HOME/.config/opencode/plugins/workmux-status.ts"
+ln -sfn "$DOTFILES/opencode/plugins/workmux-status" "$HOME/.config/opencode/plugins/workmux-status"
 
 # Scripts → ~/.local/bin
 mkdir -p "$HOME/.local/bin"
